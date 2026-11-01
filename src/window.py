@@ -136,6 +136,9 @@ class HighTideWindow(Adw.ApplicationWindow):
             self.console_glyphs.add_around(switcher, "lb", "rb")
         )
         self._console_home_enabled = False
+        # The player sidebar is run by its own buttons (X, LB/RB, LT/RT),
+        # so the D-pad stays in the main content
+        self.console_focus_skip = [self.player_lyrics_queue]
 
         self.gamepad = gamepad.ConsoleGamepad(
             self,

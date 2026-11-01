@@ -50,12 +50,12 @@ def _search_root(window: Gtk.Window, focus: Gtk.Widget | None) -> Gtk.Widget:
     return dialog if dialog is not None else window
 
 
-def _candidates(root: Gtk.Widget) -> list[Gtk.Widget]:
+def _candidates(root: Gtk.Widget, skip: tuple = ()) -> list[Gtk.Widget]:
     found = []
     stack = [root]
     while stack:
         widget = stack.pop()
-        if not widget.get_mapped():
+        if not widget.get_mapped() or widget in skip:
             continue
         if widget is not root and isinstance(widget, Gtk.Popover):
             continue
@@ -125,10 +125,32 @@ def move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
         moving = False
 
 
+def _is_inside(widget: Gtk.Widget, areas: tuple) -> bool:
+    return any(widget is area or widget.is_ancestor(area) for area in areas)
+
+
+def _first_candidate(root: Gtk.Widget, skip: tuple) -> bool:
+    """Focus the top-left widget, for when there's no current selection."""
+    best = None
+    best_key = None
+    for candidate in _candidates(root, skip):
+        rect = _bounds(candidate, root)
+        if rect is None:
+            continue
+        key = (round(rect.get_y()), rect.get_x())
+        if best_key is None or key < best_key:
+            best, best_key = candidate, key
+    return best.grab_focus() if best is not None else False
+
+
 def _move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
+    # Areas the D-pad never enters (e.g. the player sidebar, which has its
+    # own buttons). Set by the window as console_focus_skip.
+    skip = tuple(getattr(window, "console_focus_skip", ()))
+
     focus = window.get_focus()
-    if focus is None:
-        return window.child_focus(Gtk.DirectionType.TAB_FORWARD)
+    if focus is None or _is_inside(focus, skip):
+        return _first_candidate(_search_root(window, None), skip)
 
     # Moving up or down from a button inside a list row moves by whole rows
     if direction in (_UP, _DOWN):
@@ -150,7 +172,7 @@ def _move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
 
     best = None
     best_score = None
-    for candidate in _candidates(root):
+    for candidate in _candidates(root, skip):
         if candidate is focus:
             continue
         # Skip containers of the focused widget (e.g. its own row)
