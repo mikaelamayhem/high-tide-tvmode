@@ -25,8 +25,9 @@ import tidalapi
 from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
+from .lib.console_hints import ConsoleHintsBar
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
-                  SteamKeyboardWatcher,
+                  SteamKeyboardWatcher, console_mode, gamepad,
                   apply_console_mode, is_console_mode, scale_widget_sizes,
                   utils)
 from .login import LoginDialog
@@ -104,6 +105,24 @@ class HighTideWindow(Adw.ApplicationWindow):
         )
 
         self.steam_keyboard = SteamKeyboardWatcher(self)
+
+        # Console mode: button hints under the normal content
+        self.console_hints = ConsoleHintsBar()
+        self.console_hints._ht_console_scaled = True
+        main_content = self.get_content()
+        self.set_content(None)
+        main_content.set_vexpand(True)
+        console_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        console_box.append(main_content)
+        console_box.append(self.console_hints)
+        self.set_content(console_box)
+
+        self.gamepad = gamepad.ConsoleGamepad(
+            self, self.on_console_action, self.update_console_mode
+        )
+        self.settings.connect(
+            "changed::console-button-style", self.update_console_mode
+        )
         self.settings.connect("changed::console-mode", self.update_console_mode)
         self.settings.connect(
             "changed::console-steam-keyboard", self.update_console_mode
@@ -242,6 +261,60 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.steam_keyboard.set_enabled(
             enabled and self.settings.get_boolean("console-steam-keyboard")
         )
+        self.gamepad.set_enabled(enabled)
+
+        device_names = self.gamepad.device_names
+        style = self.settings.get_string("console-button-style")
+        if style not in gamepad.BUTTON_STYLES:
+            style = gamepad.guess_button_style(device_names[0] if device_names else "")
+        self.console_hints.set_style(style, console_mode.get_scale())
+        self.console_hints.set_visible(enabled and bool(device_names))
+
+    def on_console_action(self, action: str) -> None:
+        """Handle a controller button press in console mode."""
+        match action:
+            case "select":
+                self.console_select()
+            case "back":
+                self.console_back()
+            case "play-pause":
+                self.player_object.play_pause()
+            case "next":
+                self.player_object.play_next()
+            case "previous":
+                self.player_object.play_previous()
+            case "search":
+                self.on_explore_button_clicked_func(None)
+            case "home":
+                self.on_home_button_clicked_func(None)
+            case "settings":
+                self.get_application().activate_action("preferences", None)
+
+    def console_select(self) -> None:
+        """Activate the focused widget, like a click."""
+        focus = self.get_focus()
+        widget = focus
+        # Cards and top hits are clicked through a gesture, not activate()
+        while widget is not None:
+            if hasattr(widget, "_on_click"):
+                widget._on_click()
+                return
+            widget = widget.get_parent()
+        if focus is not None:
+            focus.activate()
+
+    def console_back(self) -> None:
+        """Close the open popover or dialog, or go back one page."""
+        widget = self.get_focus()
+        while widget is not None:
+            if isinstance(widget, Gtk.Popover):
+                widget.popdown()
+                return
+            if isinstance(widget, Adw.Dialog):
+                widget.close()
+                return
+            widget = widget.get_parent()
+        self.navigation_view.pop()
 
     @Gtk.Template.Callback("copy_secret_service_override_command")
     def copy_secret_service_override_command (self, *args):

@@ -190,6 +190,19 @@ class HighTideApplication(Adw.Application):
                 "active",
                 Gio.SettingsBindFlags.DEFAULT,
             )
+            style_row = builder.get_object("_console_button_style_row")
+            styles = ["auto", "xbox", "playstation", "steamdeck"]
+            current_style = self.settings.get_string("console-button-style")
+            style_row.set_selected(
+                styles.index(current_style) if current_style in styles else 0
+            )
+            style_row.connect(
+                "notify::selected",
+                lambda row, *_: self.settings.set_string(
+                    "console-button-style", styles[row.get_selected()]
+                ),
+            )
+
             self.settings.bind(
                 "console-steam-keyboard",
                 builder.get_object("_console_keyboard_row"),

@@ -11,6 +11,7 @@
         "--device=dri",
         "--socket=wayland",
         "--socket=pulseaudio",
+        "--device=input",
         "--filesystem=xdg-run/pipewire-0:ro",
         "--filesystem=xdg-run/discord-ipc-0"
     ],

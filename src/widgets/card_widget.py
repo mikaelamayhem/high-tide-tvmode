@@ -31,7 +31,7 @@ from tidalapi.media import Track
 from tidalapi.page import PageItem
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import scale_widget_sizes, utils
+from ..lib import console_mode, scale_widget_sizes, utils
 
 
 @Gtk.Template(resource_path="/io/github/nokse22/high-tide/ui/widgets/card_widget.ui")
@@ -62,6 +62,9 @@ class HTCardWidget(Adw.BreakpointBin, IDisconnectable):
         IDisconnectable.__init__(self)
         super().__init__()
         scale_widget_sizes(self)
+        if console_mode.is_enabled():
+            # Let the controller's D-pad land on cards
+            self.set_focusable(True)
 
         self.signals.append(
             (

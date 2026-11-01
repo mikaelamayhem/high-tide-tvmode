@@ -33,6 +33,11 @@ def is_console_mode(settings: Gio.Settings, app: Gtk.Application | None) -> bool
     return forced or settings.get_boolean("console-mode")
 
 
+def is_enabled() -> bool:
+    """True while console mode is on."""
+    return _state["enabled"]
+
+
 def get_scale() -> float:
     """The current console scale factor, or 1.0 outside console mode."""
     return _state["scale"] if _state["enabled"] else 1.0

@@ -45,6 +45,34 @@
     <file preprocess="xml-stripblanks">icons/16x16/actions/share-alt-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/16x16/actions/playback-paused-symbolic.svg</file>
     <file preprocess="xml-stripblanks">icons/16x16/actions/copy-symbolic.svg</file>
+    <!-- Console mode controller button icons -->
+    <file>icons/console/xbox/a.svg</file>
+    <file>icons/console/xbox/b.svg</file>
+    <file>icons/console/xbox/x.svg</file>
+    <file>icons/console/xbox/y.svg</file>
+    <file>icons/console/xbox/lb.svg</file>
+    <file>icons/console/xbox/rb.svg</file>
+    <file>icons/console/xbox/start.svg</file>
+    <file>icons/console/xbox/select.svg</file>
+    <file>icons/console/xbox/dpad.svg</file>
+    <file>icons/console/playstation/a.svg</file>
+    <file>icons/console/playstation/b.svg</file>
+    <file>icons/console/playstation/x.svg</file>
+    <file>icons/console/playstation/y.svg</file>
+    <file>icons/console/playstation/lb.svg</file>
+    <file>icons/console/playstation/rb.svg</file>
+    <file>icons/console/playstation/start.svg</file>
+    <file>icons/console/playstation/select.svg</file>
+    <file>icons/console/playstation/dpad.svg</file>
+    <file>icons/console/steamdeck/a.svg</file>
+    <file>icons/console/steamdeck/b.svg</file>
+    <file>icons/console/steamdeck/x.svg</file>
+    <file>icons/console/steamdeck/y.svg</file>
+    <file>icons/console/steamdeck/lb.svg</file>
+    <file>icons/console/steamdeck/rb.svg</file>
+    <file>icons/console/steamdeck/start.svg</file>
+    <file>icons/console/steamdeck/select.svg</file>
+    <file>icons/console/steamdeck/dpad.svg</file>
   </gresource>
 </gresources>
 

@@ -1,3 +1,4 @@
+from . import console_mode, gamepad
 from .cache import HTCache
 from .console_mode import (apply_console_mode, is_console_mode,
                            scale_widget_sizes)

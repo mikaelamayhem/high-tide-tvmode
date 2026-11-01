@@ -57,6 +57,23 @@ meson install -C builddir
 
 Or open the project in GNOME Builder and click "Run Project".
 
+## 🎮 Console mode
+
+Console mode is a full screen, controller friendly layout for TVs and
+handhelds (Steam Deck, SteamOS, CachyOS handheld edition and similar).
+
+- Turn it on in Preferences, or for one session with `high-tide --console`
+  (also available as "Console Mode" in the app launcher's right-click menu).
+- **Interface size** makes text, buttons and album art bigger (100% to 250%).
+- **Controller**: D-pad or left stick moves, A selects, B goes back,
+  X plays/pauses, Y opens search, LB/RB skip tracks, View goes home and Menu
+  opens Preferences. Button hints show at the bottom with Xbox, PlayStation or
+  Steam Deck icons. Needs libmanette (`libmanette` package).
+- **On-screen keyboard**: selecting a text field opens Steam's keyboard while
+  Steam is running in Big Picture or Game Mode.
+
+Sign in once in normal mode first; High Tide remembers your login.
+
 ## ❌ Uninstallation
 We're sorry to see you go! If you want to remove the High Tide flatpak package from your system, here's how to do so:
 

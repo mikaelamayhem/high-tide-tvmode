@@ -61,6 +61,17 @@
       <summary>Console mode scale</summary>
       <description>How much bigger the interface is in console mode, in percent</description>
     </key>
+	  <key name="console-button-style" type="s">
+      <choices>
+        <choice value="auto"/>
+        <choice value="xbox"/>
+        <choice value="playstation"/>
+        <choice value="steamdeck"/>
+      </choices>
+      <default>'auto'</default>
+      <summary>Controller button icons</summary>
+      <description>Which controller's button icons to show in console mode</description>
+    </key>
 	  <key name="console-steam-keyboard" type="b">
       <default>true</default>
       <summary>Open Steam keyboard</summary>
