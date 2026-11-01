@@ -90,6 +90,11 @@ def _apply_css_scale(scale: float) -> None:
     if scale == 1.0:
         return
 
+    # Text already follows the desktop's font scaling (e.g. 125% in KDE)
+    # on top of ours, so grow icons and controls by the same amount to keep
+    # them in proportion with the text
+    scale *= (_default_xft_dpi or _BASE_XFT_DPI) / _BASE_XFT_DPI
+
     def px(value: float) -> str:
         return f"{round(value * scale)}px"
 

@@ -71,6 +71,9 @@ handhelds (Steam Deck, SteamOS, CachyOS handheld edition and similar).
   Player/Lyrics/Queue tabs, LT/RT skip tracks, View cycles
   Home/Explore/Collection and Menu opens Preferences. Button hints show at the bottom with Xbox, PlayStation or
   Steam Deck icons. Needs libmanette (`libmanette` package).
+- **Home** shows Liked Songs and your playlists at the top; the
+  Home/Explore/Collection tabs are hidden. Button icons sit next to the
+  controls they operate, and a popup shows the volume as you change it.
 - **On-screen keyboard**: selecting a text field opens Steam's keyboard while
   Steam is running in Big Picture or Game Mode.
 

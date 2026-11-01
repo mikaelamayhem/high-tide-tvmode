@@ -25,7 +25,7 @@ import tidalapi
 from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
-from .lib.console_hints import ConsoleHintsBar
+from .lib.console_hints import ConsoleGlyphs, ConsoleHintsBar, VolumeOsd
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
                   SteamKeyboardWatcher, console_mode, gamepad,
                   apply_console_mode, is_console_mode, scale_widget_sizes,
@@ -88,6 +88,7 @@ class HighTideWindow(Adw.ApplicationWindow):
     copy_share_link = Gtk.Template.Child()
 
     secret_portal_dialog = Gtk.Template.Child()
+    player_headerbar = Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -115,7 +116,25 @@ class HighTideWindow(Adw.ApplicationWindow):
         console_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         console_box.append(main_content)
         console_box.append(self.console_hints)
-        self.set_content(console_box)
+        # Volume popup floats over everything
+        self.volume_osd = VolumeOsd()
+        console_overlay = Gtk.Overlay(child=console_box)
+        console_overlay.add_overlay(self.volume_osd)
+        self.set_content(console_overlay)
+
+        # Button icons next to the controls they operate
+        self.console_glyphs = ConsoleGlyphs()
+        next_button = self.play_button.get_next_sibling()
+        self.console_glyphs.add_below(self.go_prev_button, "lt")
+        self.console_glyphs.add_below(self.play_button, "x")
+        if next_button is not None:
+            self.console_glyphs.add_below(next_button, "rt")
+        switcher = self.player_headerbar.get_title_widget()
+        self.player_headerbar.set_title_widget(None)
+        self.player_headerbar.set_title_widget(
+            self.console_glyphs.add_around(switcher, "lb", "rb")
+        )
+        self._console_home_enabled = False
 
         self.gamepad = gamepad.ConsoleGamepad(
             self,
@@ -277,8 +296,17 @@ class HighTideWindow(Adw.ApplicationWindow):
         style = self.settings.get_string("console-button-style")
         if style not in gamepad.BUTTON_STYLES:
             style = gamepad.guess_button_style(device_names[0] if device_names else "")
+        show_buttons = enabled and bool(device_names)
         self.console_hints.set_style(style, console_mode.get_scale())
-        self.console_hints.set_visible(enabled and bool(device_names))
+        self.console_hints.set_visible(show_buttons)
+        self.console_glyphs.set_style(style, console_mode.get_scale(), show_buttons)
+
+        # Console home has Liked Songs and playlists, so the tabs aren't needed
+        self.navigation_buttons.set_visible(not enabled)
+        if enabled != self._console_home_enabled:
+            self._console_home_enabled = enabled
+            if getattr(self, "is_logged_in", False):
+                self.show_home_page()
 
     def on_console_setting_changed(self, *args) -> None:
         # Changing the setting overrides --console for the rest of the session
@@ -369,6 +397,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         adjustment.set_value(
             min(adjustment.get_upper(), max(0.0, adjustment.get_value() + delta))
         )
+        self.volume_osd.show_volume(adjustment.get_value() / adjustment.get_upper())
 
     def console_select(self) -> None:
         """Activate the focused widget, like a click."""
@@ -382,6 +411,14 @@ class HighTideWindow(Adw.ApplicationWindow):
             widget = widget.get_parent()
         if focus is not None:
             focus.activate()
+
+    def show_home_page(self) -> None:
+        """Load the home page, with Liked Songs and playlists in console mode."""
+        page = HTGenericPage.new_from_function(utils.session.home)
+        page.console_home = console_mode.is_enabled()
+        page.load()
+        page.set_tag("home")
+        self.navigation_view.replace([page])
 
     def console_toggle_settings(self) -> None:
         """Open Preferences, or close it if it's already open."""
@@ -467,9 +504,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         """Handle successful user login"""
         logger.info("logged in")
 
-        page = HTGenericPage.new_from_function(utils.session.home).load()
-        page.set_tag("home")
-        self.navigation_view.replace([page])
+        self.show_home_page()
 
         self.player_lyrics_queue.set_sensitive(True)
         self.navigation_buttons.set_sensitive(True)

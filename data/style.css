@@ -158,3 +158,10 @@ window.console-mode .card-bg:focus-visible {
   outline: 3px solid var(--accent-color);
   outline-offset: -3px;
 }
+
+window.console-mode .console-volume-osd {
+  padding: 18px 28px;
+  border-radius: 18px;
+  font-size: 1.4em;
+  font-weight: bold;
+}

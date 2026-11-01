@@ -32,6 +32,7 @@ from tidalapi.page import (
     TrackList,
 )
 
+from ..lib import utils
 from ..widgets import HTShorcutsWidget
 from .page import Page
 
@@ -76,6 +77,9 @@ class HTGenericPage(Page):
     def _load_finish(self) -> None:
         self.set_title(self.page.title or "")
 
+        if getattr(self, "console_home", False):
+            self._add_console_home_sections()
+
         for category in self.page.categories:
             items = [
                 item for item in getattr(category, "items", []) if item is not None
@@ -110,3 +114,21 @@ class HTGenericPage(Page):
                 category, (ItemList, HorizontalList, HorizontalListWithContext)
             ):
                 self.new_carousel_for(category.title, items)
+
+    # How many liked songs to show on the console home page before "More"
+    CONSOLE_LIKED_SONGS_SHOWN = 10
+
+    def _add_console_home_sections(self) -> None:
+        """Console mode home: Liked Songs, then your playlists, at the top."""
+
+        def all_liked_songs(limit=50, offset=0):
+            return utils.favourite_tracks[offset : offset + limit]
+
+        self.new_track_list_for(
+            _("Liked Songs"),
+            utils.favourite_tracks[: self.CONSOLE_LIKED_SONGS_SHOWN],
+            more_function=all_liked_songs,
+        )
+        self.new_carousel_for(
+            _("Your Playlists"), utils.playlist_and_favorite_playlists
+        )
