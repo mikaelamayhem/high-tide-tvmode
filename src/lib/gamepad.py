@@ -74,8 +74,9 @@ TRIGGER_ACTIONS = {
 }
 TRIGGER_THRESHOLD = 0.5
 
-# Right stick: up/down scrolls the page, left/right changes the volume.
-# Values are per tick at full tilt; a small tilt moves much slower.
+# Left stick left/right changes the volume, right stick up/down scrolls.
+# The D-pad moves focus. Values are per tick at full tilt; a small tilt
+# moves much slower.
 SCROLL_SPEED = 28  # pixels
 VOLUME_SPEED = 0.008  # of full volume, so about 2 seconds from 0 to 100%
 STICK_INTERVAL_MS = 16
@@ -88,7 +89,6 @@ DPAD_DIRECTIONS = {
     BTN_DPAD_RIGHT: Gtk.DirectionType.RIGHT,
 }
 
-STICK_THRESHOLD = 0.6
 REPEAT_DELAY_MS = 400
 REPEAT_INTERVAL_MS = 120
 
@@ -132,7 +132,8 @@ class ConsoleGamepad:
     ) -> None:
         self._on_scroll = on_scroll
         self._on_volume = on_volume
-        self._right_stick = [0.0, 0.0]  # x, y
+        self._volume_tilt = 0.0  # left stick x
+        self._scroll_tilt = 0.0  # right stick y
         self._stick_source: int | None = None
         self._triggers_pressed: set[int] = set()
         self._window = window
@@ -142,7 +143,7 @@ class ConsoleGamepad:
         self._devices: list = []
         self._held_direction: Gtk.DirectionType | None = None
         self._repeat_source: int | None = None
-        # Which direction each stick/hat axis is currently pushed to
+        # Which direction each D-pad hat axis is currently pushed to
         self._axis_direction: dict[int, Gtk.DirectionType | None] = {}
         self._starting = True
 
@@ -192,8 +193,8 @@ class ConsoleGamepad:
         self._enabled = enabled
         if not enabled:
             self._stop_repeat()
-            self._right_stick = [0.0, 0.0]
-            self._update_right_stick()
+            self._volume_tilt = self._scroll_tilt = 0.0
+            self._update_sticks()
 
     # Devices
 
@@ -244,21 +245,14 @@ class ConsoleGamepad:
         if axis in TRIGGER_ACTIONS:
             self._on_trigger(axis, value)
             return
-        if axis in (ABS_RX, ABS_RY):
-            self._right_stick[axis == ABS_RY] = (
-                value if abs(value) > STICK_DEADZONE else 0.0
-            )
-            self._update_right_stick()
-            return
-        if axis not in (ABS_X, ABS_Y):
-            return
-        if abs(value) < STICK_THRESHOLD:
-            direction = None
-        elif axis == ABS_X:
-            direction = Gtk.DirectionType.LEFT if value < 0 else Gtk.DirectionType.RIGHT
+        tilt = value if abs(value) > STICK_DEADZONE else 0.0
+        if axis == ABS_X:
+            self._volume_tilt = tilt
+        elif axis == ABS_RY:
+            self._scroll_tilt = tilt
         else:
-            direction = Gtk.DirectionType.UP if value < 0 else Gtk.DirectionType.DOWN
-        self._set_axis_direction(axis, direction)
+            return
+        self._update_sticks()
 
     def _on_hat_axis(self, device, event) -> None:
         has_hat, axis, value = event.get_hat()
@@ -292,31 +286,28 @@ class ConsoleGamepad:
         elif value < TRIGGER_THRESHOLD / 2:
             self._triggers_pressed.discard(axis)
 
-    # Right stick: scroll and volume
+    # Sticks: volume and scrolling
 
-    def _update_right_stick(self) -> None:
-        moving = any(self._right_stick)
+    def _update_sticks(self) -> None:
+        moving = self._volume_tilt or self._scroll_tilt
         if moving and self._enabled:
             if self._stick_source is None:
                 self._stick_source = GLib.timeout_add(
-                    STICK_INTERVAL_MS, self._right_stick_tick
+                    STICK_INTERVAL_MS, self._stick_tick
                 )
         elif self._stick_source is not None:
             GLib.source_remove(self._stick_source)
             self._stick_source = None
 
-    def _right_stick_tick(self) -> bool:
-        x, y = self._right_stick
-        if not (x or y):
+    def _stick_tick(self) -> bool:
+        if not (self._volume_tilt or self._scroll_tilt):
             self._stick_source = None
             return GLib.SOURCE_REMOVE
-        # Only follow the main direction, so scrolling doesn't nudge volume.
-        # Squaring the tilt makes small pushes move slowly.
-        if abs(y) >= abs(x):
-            if self._on_scroll is not None:
-                self._on_scroll(y * abs(y) * SCROLL_SPEED)
-        elif self._on_volume is not None:
-            self._on_volume(x * abs(x) * VOLUME_SPEED)
+        # Squaring the tilt makes small pushes move slowly
+        if self._scroll_tilt and self._on_scroll is not None:
+            self._on_scroll(self._scroll_tilt * abs(self._scroll_tilt) * SCROLL_SPEED)
+        if self._volume_tilt and self._on_volume is not None:
+            self._on_volume(self._volume_tilt * abs(self._volume_tilt) * VOLUME_SPEED)
         return GLib.SOURCE_CONTINUE
 
     # Focus movement with repeat

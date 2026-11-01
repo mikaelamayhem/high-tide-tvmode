@@ -84,6 +84,7 @@ for style, icons in styles.items():
     folder = out / style
     folder.mkdir(parents=True, exist_ok=True)
     icons["dpad"] = dpad()
+    icons["lstick"] = stick("L")
     icons["rstick"] = stick("R")
     for name, svg in icons.items():
         (folder / f"{name}.svg").write_text(svg)
