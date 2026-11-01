@@ -26,6 +26,7 @@ from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
 from .lib.steam_keyboard import open_steam_keyboard
+from .lib.console_background import ConsoleBackground
 from .lib.console_hints import ConsoleGlyphs, ConsoleHintsBar, VolumeOsd
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
                   SteamKeyboardWatcher, console_mode, gamepad,
@@ -119,9 +120,20 @@ class HighTideWindow(Adw.ApplicationWindow):
         console_box.append(self.console_hints)
         # Volume popup floats over everything
         self.volume_osd = VolumeOsd()
-        console_overlay = Gtk.Overlay(child=console_box)
+        # In console mode the blurred album art sits behind everything
+        self.console_background = ConsoleBackground()
+        self.console_background.set_visible(False)
+        console_overlay = Gtk.Overlay(child=self.console_background)
+        console_overlay.add_overlay(console_box)
+        console_overlay.set_measure_overlay(console_box, True)
         console_overlay.add_overlay(self.volume_osd)
         self.set_content(console_overlay)
+        self.playing_track_picture.connect(
+            "notify::paintable",
+            lambda picture, *_: self.console_background.set_paintable(
+                picture.get_paintable()
+            ),
+        )
 
         # Button icons next to the controls they operate
         self.console_glyphs = ConsoleGlyphs()
@@ -304,6 +316,8 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.console_hints.set_style(style, console_mode.get_scale())
         self.console_hints.set_visible(show_buttons)
         self.console_glyphs.set_style(style, console_mode.get_scale(), show_buttons)
+
+        self.console_background.set_visible(enabled)
 
         # Console home has Liked Songs and playlists, so the tabs aren't needed
         self.navigation_buttons.set_visible(not enabled)

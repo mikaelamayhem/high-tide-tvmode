@@ -15,7 +15,7 @@ Scaling works in three layers:
 - artwork: scale_widget_sizes() enlarges fixed size images on new widgets
 """
 
-from gi.repository import Gdk, Gio, Gtk
+from gi.repository import Adw, Gdk, Gio, Gtk
 
 CONSOLE_CSS_CLASS = "console-mode"
 
@@ -48,6 +48,10 @@ def apply_console_mode(window: Gtk.Window, enabled: bool, scale_percent: int) ->
     _state["enabled"] = enabled
     _state["scale"] = max(scale_percent, 100) / 100
 
+    # Light text reads best on the dimmed album art background
+    Adw.StyleManager.get_default().set_color_scheme(
+        Adw.ColorScheme.FORCE_DARK if enabled else Adw.ColorScheme.DEFAULT
+    )
     if enabled:
         window.add_css_class(CONSOLE_CSS_CLASS)
         window.fullscreen()
