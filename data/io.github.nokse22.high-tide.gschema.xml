@@ -50,5 +50,10 @@
 	  <key name="alsa-device" type="s">
       <default>'default'</default>
     </key>
+	  <key name="console-mode" type="b">
+      <default>false</default>
+      <summary>Console mode</summary>
+      <description>Full screen, controller friendly layout for TVs and handhelds</description>
+    </key>
 	</schema>
 </schemalist>

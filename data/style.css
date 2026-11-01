@@ -144,3 +144,8 @@
 dropdown button:not(:hover) {
   background-color: transparent;
 }
+/* Console mode: controller friendly layout, see src/lib/console_mode.py */
+window.console-mode *:focus-visible {
+  outline-width: 3px;
+  outline-offset: 2px;
+}

@@ -25,7 +25,8 @@ import tidalapi
 from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
-from .lib import HTCache, PlayerObject, RepeatType, SecretStore, utils
+from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
+                  apply_console_mode, is_console_mode, utils)
 from .login import LoginDialog
 from .mpris import MPRIS
 from .pages import (HTAlbumPage, HTArtistPage, HTCollectionPage, HTExplorePage,
@@ -99,6 +100,9 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.settings.bind(
             "run-background", self, "hide-on-close", Gio.SettingsBindFlags.DEFAULT
         )
+
+        self.settings.connect("changed::console-mode", self.update_console_mode)
+        self.update_console_mode()
 
         self.create_action_with_target(
             "push-artist-page", GLib.VariantType.new("s"), self.on_push_artist_page
@@ -221,6 +225,12 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.connect("notify::is-active", self.stop_video_in_background)
 
         threading.Thread(target=utils.evict_cache, args=(utils.MUSIC_DIR, 5)).start()
+
+    def update_console_mode(self, *args):
+        """Apply console mode from the setting or the --console flag."""
+        apply_console_mode(
+            self, is_console_mode(self.settings, self.get_application())
+        )
 
     @Gtk.Template.Callback("copy_secret_service_override_command")
     def copy_secret_service_override_command (self, *args):

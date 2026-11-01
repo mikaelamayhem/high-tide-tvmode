@@ -21,7 +21,7 @@ import sys
 from gettext import gettext as _
 from typing import Any, Callable, List
 
-from gi.repository import Adw, Gio, Gtk
+from gi.repository import Adw, Gio, GLib, Gtk
 
 from .lib import utils
 from .lib.player_object import AudioSink
@@ -56,6 +56,23 @@ class HighTideApplication(Adw.Application):
         self.preferences: Gtk.Window | None = None
 
         self.alsa_devices = utils.get_alsa_devices()
+
+        # Set by --console; turns on console mode for this session only
+        self.console_forced: bool = False
+        self.add_main_option(
+            "console",
+            0,
+            GLib.OptionFlags.NONE,
+            GLib.OptionArg.NONE,
+            _("Start in console mode (full screen, controller friendly)"),
+            None,
+        )
+
+    def do_handle_local_options(self, options: GLib.VariantDict) -> int:
+        if options.contains("console"):
+            self.console_forced = True
+        # -1 lets the application keep starting normally
+        return -1
 
     def do_open(self, files: List[Gio.File], n_files: int, hint: str) -> None:
         self.win: HighTideWindow | None = self.props.active_window
@@ -165,6 +182,13 @@ class HighTideApplication(Adw.Application):
             )
             builder.get_object("_discord_rpc_row").connect(
                 "notify::active", self.on_discord_rpc_changed
+            )
+
+            self.settings.bind(
+                "console-mode",
+                builder.get_object("_console_mode_row"),
+                "active",
+                Gio.SettingsBindFlags.DEFAULT,
             )
 
             self.alsa_row = builder.get_object("_alsa_device_row")

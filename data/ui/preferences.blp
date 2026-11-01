@@ -56,5 +56,13 @@ Adw.PreferencesDialog _preference_window {
         title: _("Enable Discord Rich Presence");
       }
     }
+
+    Adw.PreferencesGroup {
+      title: _("Console Mode");
+      Adw.SwitchRow _console_mode_row {
+        title: _("Console mode");
+        subtitle: _("Full screen, controller friendly layout for TVs and handhelds. Can also be turned on for one session with --console");
+      }
+    }
   }
 }
