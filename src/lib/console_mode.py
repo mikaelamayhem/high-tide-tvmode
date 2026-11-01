@@ -59,8 +59,24 @@ def apply_console_mode(window: Gtk.Window, enabled: bool, scale_percent: int) ->
         window.remove_css_class(CONSOLE_CSS_CLASS)
         window.unfullscreen()
 
+    _apply_window_buttons(enabled)
     _apply_text_scale(get_scale())
     _apply_css_scale(get_scale())
+
+
+def _apply_window_buttons(enabled: bool) -> None:
+    """Hide the window icon and minimize/maximize/close buttons.
+
+    A full screen console app doesn't need them; the controller closes
+    things with B, and the icon took the space of the LB hint.
+    """
+    gtk_settings = Gtk.Settings.get_default()
+    if gtk_settings is None:
+        return
+    if enabled:
+        gtk_settings.props.gtk_decoration_layout = ":"
+    else:
+        gtk_settings.reset_property("gtk-decoration-layout")
 
 
 def _apply_text_scale(scale: float) -> None:
