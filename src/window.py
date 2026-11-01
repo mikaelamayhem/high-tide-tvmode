@@ -311,7 +311,9 @@ class HighTideWindow(Adw.ApplicationWindow):
             case "previous":
                 self.player_object.play_previous()
             case "search":
-                self.on_explore_button_clicked_func(None)
+                # Open Explore with the cursor in the search box, which
+                # also brings up the Steam keyboard
+                self.open_explore_page().focus_search()
             case "tab-next":
                 self.console_switch_tab(1)
             case "tab-previous":
@@ -692,12 +694,18 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback("on_explore_button_clicked")
     def on_explore_button_clicked_func(self, widget):
-        if self.navigation_view.find_page("explore"):
+        self.open_explore_page()
+
+    def open_explore_page(self):
+        """Show the Explore page, opening it if needed, and return it."""
+        page = self.navigation_view.find_page("explore")
+        if page:
             self.navigation_view.pop_to_tag("explore")
-            return
+            return page
 
         page = HTExplorePage().load()
         self.navigation_view.push(page)
+        return page
 
     @Gtk.Template.Callback("on_collection_button_clicked")
     def on_collection_button_clicked_func(self, widget):
