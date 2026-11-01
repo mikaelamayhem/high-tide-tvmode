@@ -190,6 +190,12 @@ class HighTideApplication(Adw.Application):
                 "active",
                 Gio.SettingsBindFlags.DEFAULT,
             )
+            self.settings.bind(
+                "console-scale",
+                builder.get_object("_console_scale_row"),
+                "value",
+                Gio.SettingsBindFlags.DEFAULT,
+            )
 
             self.alsa_row = builder.get_object("_alsa_device_row")
 

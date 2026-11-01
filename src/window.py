@@ -26,7 +26,8 @@ from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
-                  apply_console_mode, is_console_mode, utils)
+                  apply_console_mode, is_console_mode, scale_widget_sizes,
+                  utils)
 from .login import LoginDialog
 from .mpris import MPRIS
 from .pages import (HTAlbumPage, HTArtistPage, HTCollectionPage, HTExplorePage,
@@ -102,7 +103,10 @@ class HighTideWindow(Adw.ApplicationWindow):
         )
 
         self.settings.connect("changed::console-mode", self.update_console_mode)
+        self.settings.connect("changed::console-scale", self.update_console_mode)
         self.update_console_mode()
+        # Enlarge the player bar cover art once at startup
+        scale_widget_sizes(self)
 
         self.create_action_with_target(
             "push-artist-page", GLib.VariantType.new("s"), self.on_push_artist_page
@@ -229,7 +233,9 @@ class HighTideWindow(Adw.ApplicationWindow):
     def update_console_mode(self, *args):
         """Apply console mode from the setting or the --console flag."""
         apply_console_mode(
-            self, is_console_mode(self.settings, self.get_application())
+            self,
+            is_console_mode(self.settings, self.get_application()),
+            self.settings.get_int("console-scale"),
         )
 
     @Gtk.Template.Callback("copy_secret_service_override_command")

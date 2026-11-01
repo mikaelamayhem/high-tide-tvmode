@@ -29,7 +29,7 @@ from tidalapi.playlist import Playlist
 from tidalapi.media import Track
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import utils
+from ..lib import scale_widget_sizes, utils
 
 
 @Gtk.Template(resource_path="/io/github/nokse22/high-tide/ui/widgets/top_hit_widget.ui")
@@ -49,6 +49,7 @@ class HTTopHitWidget(Gtk.Box, IDisconnectable):
     def __init__(self, _item):
         IDisconnectable.__init__(self)
         super().__init__()
+        scale_widget_sizes(self)
 
         self.signals.append(
             (

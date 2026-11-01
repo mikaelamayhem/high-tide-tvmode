@@ -63,6 +63,16 @@ Adw.PreferencesDialog _preference_window {
         title: _("Console mode");
         subtitle: _("Full screen, controller friendly layout for TVs and handhelds. Can also be turned on for one session with --console");
       }
+      Adw.SpinRow _console_scale_row {
+        title: _("Interface size");
+        subtitle: _("In percent. Album art updates when a page is opened again");
+        adjustment: Adjustment {
+          lower: 100;
+          upper: 250;
+          step-increment: 10;
+          page-increment: 25;
+        };
+      }
     }
   }
 }

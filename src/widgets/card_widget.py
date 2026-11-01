@@ -31,7 +31,7 @@ from tidalapi.media import Track
 from tidalapi.page import PageItem
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import utils
+from ..lib import scale_widget_sizes, utils
 
 
 @Gtk.Template(resource_path="/io/github/nokse22/high-tide/ui/widgets/card_widget.ui")
@@ -61,6 +61,7 @@ class HTCardWidget(Adw.BreakpointBin, IDisconnectable):
         """
         IDisconnectable.__init__(self)
         super().__init__()
+        scale_widget_sizes(self)
 
         self.signals.append(
             (

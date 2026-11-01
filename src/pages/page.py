@@ -24,7 +24,7 @@ from gi.repository import Adw, GLib, Gtk
 from tidalapi.media import Video
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import utils
+from ..lib import scale_widget_sizes, utils
 from ..widgets import (
     HTAutoLoadWidget,
     HTCardWidget,
@@ -97,6 +97,8 @@ class Page(Adw.NavigationPage, IDisconnectable):
 
         def _loaded():
             self._load_finish()
+            # Enlarge header art etc. in console mode
+            scale_widget_sizes(self)
             self.content_stack.set_visible_child_name("content")
 
         def _load():

@@ -55,5 +55,11 @@
       <summary>Console mode</summary>
       <description>Full screen, controller friendly layout for TVs and handhelds</description>
     </key>
+	  <key name="console-scale" type="i">
+      <range min="100" max="250"/>
+      <default>150</default>
+      <summary>Console mode scale</summary>
+      <description>How much bigger the interface is in console mode, in percent</description>
+    </key>
 	</schema>
 </schemalist>
