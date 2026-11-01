@@ -48,7 +48,7 @@ styles = {
         "b": circle(letter("B", "#e2453c")),
         "x": circle(letter("X", "#3c8be2")),
         "y": circle(letter("Y", "#f2c230")),
-        "lb": pill("LB"), "rb": pill("RB"),
+        "lb": pill("LB"), "rb": pill("RB"), "lt": pill("LT"), "rt": pill("RT"),
         "start": menu_icon(), "select": view_icon(),
     },
     "playstation": {
@@ -61,7 +61,7 @@ styles = {
                     'stroke="#d48ccf" stroke-width="5"/>'),
         "y": circle('<path d="M32 17L46 42H18z" fill="none" stroke="#3fc9a6" '
                     'stroke-width="5" stroke-linejoin="round"/>'),
-        "lb": pill("L1"), "rb": pill("R1"),
+        "lb": pill("L1"), "rb": pill("R1"), "lt": pill("L2"), "rt": pill("R2"),
         "start": menu_icon(), "select": view_icon(),
     },
     "steamdeck": {
@@ -69,7 +69,7 @@ styles = {
         "b": circle(letter("B", "#ffffff")),
         "x": circle(letter("X", "#ffffff")),
         "y": circle(letter("Y", "#ffffff")),
-        "lb": pill("L1"), "rb": pill("R1"),
+        "lb": pill("L1"), "rb": pill("R1"), "lt": pill("L2"), "rt": pill("R2"),
         "start": menu_icon(), "select": view_icon(),
     },
 }

@@ -65,9 +65,10 @@ handhelds (Steam Deck, SteamOS, CachyOS handheld edition and similar).
 - Turn it on in Preferences, or for one session with `high-tide --console`
   (also available as "Console Mode" in the app launcher's right-click menu).
 - **Interface size** makes text, buttons and album art bigger (100% to 250%).
-- **Controller**: D-pad or left stick moves, A selects, B goes back,
-  X plays/pauses, Y opens search, LB/RB skip tracks, View goes home and Menu
-  opens Preferences. Button hints show at the bottom with Xbox, PlayStation or
+- **Controller**: D-pad or left stick moves, right stick scrolls, A selects,
+  B goes back, X plays/pauses, Y opens search, LB/RB switch the
+  Player/Lyrics/Queue tabs, LT/RT skip tracks, View cycles
+  Home/Explore/Collection and Menu opens Preferences. Button hints show at the bottom with Xbox, PlayStation or
   Steam Deck icons. Needs libmanette (`libmanette` package).
 - **On-screen keyboard**: selecting a text field opens Steam's keyboard while
   Steam is running in Big Picture or Game Mode.

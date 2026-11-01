@@ -118,7 +118,10 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.set_content(console_box)
 
         self.gamepad = gamepad.ConsoleGamepad(
-            self, self.on_console_action, self.update_console_mode
+            self,
+            self.on_console_action,
+            self.update_console_mode,
+            self.console_scroll,
         )
         self.settings.connect(
             "changed::console-button-style", self.update_console_mode
@@ -308,10 +311,41 @@ class HighTideWindow(Adw.ApplicationWindow):
                 self.player_object.play_previous()
             case "search":
                 self.on_explore_button_clicked_func(None)
-            case "home":
-                self.on_home_button_clicked_func(None)
+            case "tab-next":
+                self.console_switch_tab(1)
+            case "tab-previous":
+                self.console_switch_tab(-1)
+            case "section-next":
+                self.console_next_section()
             case "settings":
                 self.get_application().activate_action("preferences", None)
+
+    CONSOLE_TABS = ("player", "lyrics", "queue")
+
+    def console_switch_tab(self, step: int) -> None:
+        """Move between the Player, Lyrics and Queue tabs."""
+        current = self.sidebar_stack.get_visible_child_name()
+        tabs = self.CONSOLE_TABS
+        index = tabs.index(current) if current in tabs else 0
+        self.sidebar_stack.set_visible_child_name(tabs[(index + step) % len(tabs)])
+
+    def console_next_section(self) -> None:
+        """Cycle Home, Explore and Collection."""
+        if self.home_button.get_active():
+            self.on_explore_button_clicked_func(None)
+        elif self.explore_button.get_active():
+            self.on_collection_button_clicked_func(None)
+        else:
+            self.on_home_button_clicked_func(None)
+
+    def console_scroll(self, pixels: float) -> None:
+        """Scroll the current page, for the right stick."""
+        page = self.navigation_view.get_visible_page()
+        scrolled_window = getattr(page, "scrolled_window", None)
+        if scrolled_window is None:
+            return
+        adjustment = scrolled_window.get_vadjustment()
+        adjustment.set_value(adjustment.get_value() + pixels)
 
     def console_select(self) -> None:
         """Activate the focused widget, like a click."""

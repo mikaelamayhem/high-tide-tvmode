@@ -18,8 +18,9 @@ HINTS = (
     (("b",), _("Back")),
     (("x",), _("Play/Pause")),
     (("y",), _("Search")),
-    (("lb", "rb"), _("Previous/Next")),
-    (("select",), _("Home")),
+    (("lb", "rb"), _("Player/Lyrics/Queue")),
+    (("lt", "rt"), _("Previous/Next")),
+    (("select",), _("Home/Explore/Collection")),
     (("start",), _("Settings")),
 )
 

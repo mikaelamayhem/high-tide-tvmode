@@ -52,6 +52,8 @@
     <file>icons/console/xbox/y.svg</file>
     <file>icons/console/xbox/lb.svg</file>
     <file>icons/console/xbox/rb.svg</file>
+    <file>icons/console/xbox/lt.svg</file>
+    <file>icons/console/xbox/rt.svg</file>
     <file>icons/console/xbox/start.svg</file>
     <file>icons/console/xbox/select.svg</file>
     <file>icons/console/xbox/dpad.svg</file>
@@ -61,6 +63,8 @@
     <file>icons/console/playstation/y.svg</file>
     <file>icons/console/playstation/lb.svg</file>
     <file>icons/console/playstation/rb.svg</file>
+    <file>icons/console/playstation/lt.svg</file>
+    <file>icons/console/playstation/rt.svg</file>
     <file>icons/console/playstation/start.svg</file>
     <file>icons/console/playstation/select.svg</file>
     <file>icons/console/playstation/dpad.svg</file>
@@ -70,6 +74,8 @@
     <file>icons/console/steamdeck/y.svg</file>
     <file>icons/console/steamdeck/lb.svg</file>
     <file>icons/console/steamdeck/rb.svg</file>
+    <file>icons/console/steamdeck/lt.svg</file>
+    <file>icons/console/steamdeck/rt.svg</file>
     <file>icons/console/steamdeck/start.svg</file>
     <file>icons/console/steamdeck/select.svg</file>
     <file>icons/console/steamdeck/dpad.svg</file>

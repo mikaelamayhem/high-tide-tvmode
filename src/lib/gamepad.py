@@ -36,6 +36,8 @@ BTN_NORTH = 307  # Y / Triangle (libmanette maps by position)
 BTN_WEST = 308  # X / Square
 BTN_TL = 310
 BTN_TR = 311
+BTN_TL2 = 312  # triggers, on controllers that report them as buttons
+BTN_TR2 = 313
 BTN_SELECT = 314
 BTN_START = 315
 BTN_DPAD_UP = 544
@@ -45,6 +47,10 @@ BTN_DPAD_RIGHT = 547
 
 ABS_X = 0
 ABS_Y = 1
+ABS_Z = 2  # left trigger
+ABS_RX = 3
+ABS_RY = 4
+ABS_RZ = 5  # right trigger
 ABS_HAT0X = 16
 ABS_HAT0Y = 17
 
@@ -53,11 +59,25 @@ BUTTON_ACTIONS = {
     BTN_EAST: "back",
     BTN_WEST: "play-pause",
     BTN_NORTH: "search",
-    BTN_TL: "previous",
-    BTN_TR: "next",
+    BTN_TL: "tab-previous",
+    BTN_TR: "tab-next",
+    BTN_TL2: "previous",
+    BTN_TR2: "next",
     BTN_START: "settings",
-    BTN_SELECT: "home",
+    BTN_SELECT: "section-next",
 }
+
+# Triggers reported as axes: fire once when pushed past halfway
+TRIGGER_ACTIONS = {
+    ABS_Z: "previous",
+    ABS_RZ: "next",
+}
+TRIGGER_THRESHOLD = 0.5
+
+# Right stick scrolls the page; pixels per tick at full tilt
+SCROLL_SPEED = 28
+SCROLL_INTERVAL_MS = 16
+SCROLL_DEADZONE = 0.2
 
 DPAD_DIRECTIONS = {
     BTN_DPAD_UP: Gtk.DirectionType.UP,
@@ -105,7 +125,12 @@ class ConsoleGamepad:
         window: Gtk.Window,
         on_action: Callable[[str], None],
         on_devices_changed: Callable[[list[str]], None],
+        on_scroll: Callable[[float], None] | None = None,
     ) -> None:
+        self._on_scroll = on_scroll
+        self._scroll_speed = 0.0
+        self._scroll_source: int | None = None
+        self._triggers_pressed: set[int] = set()
         self._window = window
         self._on_action = on_action
         self._on_devices_changed = on_devices_changed
@@ -163,6 +188,7 @@ class ConsoleGamepad:
         self._enabled = enabled
         if not enabled:
             self._stop_repeat()
+            self._set_scroll(0.0)
 
     # Devices
 
@@ -208,7 +234,15 @@ class ConsoleGamepad:
 
     def _on_absolute_axis(self, device, event) -> None:
         has_axis, axis, value = event.get_absolute()
-        if not has_axis or axis not in (ABS_X, ABS_Y):
+        if not has_axis:
+            return
+        if axis in TRIGGER_ACTIONS:
+            self._on_trigger(axis, value)
+            return
+        if axis == ABS_RY:
+            self._set_scroll(value if abs(value) > SCROLL_DEADZONE else 0.0)
+            return
+        if axis not in (ABS_X, ABS_Y):
             return
         if abs(value) < STICK_THRESHOLD:
             direction = None
@@ -240,6 +274,37 @@ class ConsoleGamepad:
                 self._stop_repeat()
         elif self._enabled:
             self._start_move(direction)
+
+    def _on_trigger(self, axis: int, value: float) -> None:
+        if value > TRIGGER_THRESHOLD:
+            if axis not in self._triggers_pressed:
+                self._triggers_pressed.add(axis)
+                if self._enabled:
+                    self._on_action(TRIGGER_ACTIONS[axis])
+        elif value < TRIGGER_THRESHOLD / 2:
+            self._triggers_pressed.discard(axis)
+
+    # Right stick scrolling
+
+    def _set_scroll(self, speed: float) -> None:
+        self._scroll_speed = speed
+        if speed and self._enabled and self._on_scroll is not None:
+            if self._scroll_source is None:
+                self._scroll_source = GLib.timeout_add(
+                    SCROLL_INTERVAL_MS, self._scroll_tick
+                )
+        elif self._scroll_source is not None:
+            GLib.source_remove(self._scroll_source)
+            self._scroll_source = None
+
+    def _scroll_tick(self) -> bool:
+        if not self._scroll_speed or self._on_scroll is None:
+            self._scroll_source = None
+            return GLib.SOURCE_REMOVE
+        # Square the tilt so small pushes scroll slowly
+        speed = self._scroll_speed * abs(self._scroll_speed)
+        self._on_scroll(speed * SCROLL_SPEED)
+        return GLib.SOURCE_CONTINUE
 
     # Focus movement with repeat
 
