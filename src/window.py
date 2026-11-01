@@ -122,6 +122,7 @@ class HighTideWindow(Adw.ApplicationWindow):
             self.on_console_action,
             self.update_console_mode,
             self.console_scroll,
+            self.console_change_volume,
         )
         self.settings.connect(
             "changed::console-button-style", self.update_console_mode
@@ -346,6 +347,13 @@ class HighTideWindow(Adw.ApplicationWindow):
             return
         adjustment = scrolled_window.get_vadjustment()
         adjustment.set_value(adjustment.get_value() + pixels)
+
+    def console_change_volume(self, delta: float) -> None:
+        """Nudge the volume, for the right stick."""
+        adjustment = self.volume_button.get_adjustment()
+        adjustment.set_value(
+            min(adjustment.get_upper(), max(0.0, adjustment.get_value() + delta))
+        )
 
     def console_select(self) -> None:
         """Activate the focused widget, like a click."""

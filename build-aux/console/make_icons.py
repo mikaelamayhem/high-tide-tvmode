@@ -36,6 +36,12 @@ def view_icon():
                   f'height="14" rx="3" fill="{DARK}" stroke="#fff" stroke-width="3.5"/>')
 
 
+def stick(side):
+    return (f'{HEAD}<circle cx="32" cy="32" r="29" fill="{DARK}"/>'
+            '<circle cx="32" cy="32" r="18" fill="none" stroke="#fff" '
+            f'stroke-width="3" opacity="0.6"/>{letter(side, "#ffffff", 22)}</svg>\n')
+
+
 def dpad():
     return (f'{HEAD}<path d="M24 6h16v18h18v16H40v18H24V40H6V24h18z" fill="{DARK}"/>'
             '<path d="M32 10l5 7h-10zM32 54l5-7h-10zM10 32l7-5v10zM54 32l-7-5v10z" '
@@ -78,6 +84,7 @@ for style, icons in styles.items():
     folder = out / style
     folder.mkdir(parents=True, exist_ok=True)
     icons["dpad"] = dpad()
+    icons["rstick"] = stick("R")
     for name, svg in icons.items():
         (folder / f"{name}.svg").write_text(svg)
         print(f"    <file>icons/console/{style}/{name}.svg</file>")

@@ -65,7 +65,7 @@ handhelds (Steam Deck, SteamOS, CachyOS handheld edition and similar).
 - Turn it on in Preferences, or for one session with `high-tide --console`
   (also available as "Console Mode" in the app launcher's right-click menu).
 - **Interface size** makes text, buttons and album art bigger (100% to 250%).
-- **Controller**: D-pad or left stick moves, right stick scrolls, A selects,
+- **Controller**: D-pad or left stick moves, right stick scrolls (up/down) and changes volume (left/right), A selects,
   B goes back, X plays/pauses, Y opens search, LB/RB switch the
   Player/Lyrics/Queue tabs, LT/RT skip tracks, View cycles
   Home/Explore/Collection and Menu opens Preferences. Button hints show at the bottom with Xbox, PlayStation or

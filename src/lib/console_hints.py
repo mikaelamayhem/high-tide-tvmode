@@ -20,6 +20,7 @@ HINTS = (
     (("y",), _("Search")),
     (("lb", "rb"), _("Player/Lyrics/Queue")),
     (("lt", "rt"), _("Previous/Next")),
+    (("rstick",), _("Scroll/Volume")),
     (("select",), _("Home/Explore/Collection")),
     (("start",), _("Settings")),
 )

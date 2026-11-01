@@ -57,6 +57,7 @@
     <file>icons/console/xbox/start.svg</file>
     <file>icons/console/xbox/select.svg</file>
     <file>icons/console/xbox/dpad.svg</file>
+    <file>icons/console/xbox/rstick.svg</file>
     <file>icons/console/playstation/a.svg</file>
     <file>icons/console/playstation/b.svg</file>
     <file>icons/console/playstation/x.svg</file>
@@ -68,6 +69,7 @@
     <file>icons/console/playstation/start.svg</file>
     <file>icons/console/playstation/select.svg</file>
     <file>icons/console/playstation/dpad.svg</file>
+    <file>icons/console/playstation/rstick.svg</file>
     <file>icons/console/steamdeck/a.svg</file>
     <file>icons/console/steamdeck/b.svg</file>
     <file>icons/console/steamdeck/x.svg</file>
@@ -79,6 +81,7 @@
     <file>icons/console/steamdeck/start.svg</file>
     <file>icons/console/steamdeck/select.svg</file>
     <file>icons/console/steamdeck/dpad.svg</file>
+    <file>icons/console/steamdeck/rstick.svg</file>
   </gresource>
 </gresources>
 

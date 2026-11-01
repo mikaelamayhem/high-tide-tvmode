@@ -74,10 +74,12 @@ TRIGGER_ACTIONS = {
 }
 TRIGGER_THRESHOLD = 0.5
 
-# Right stick scrolls the page; pixels per tick at full tilt
-SCROLL_SPEED = 28
-SCROLL_INTERVAL_MS = 16
-SCROLL_DEADZONE = 0.2
+# Right stick: up/down scrolls the page, left/right changes the volume.
+# Values are per tick at full tilt; a small tilt moves much slower.
+SCROLL_SPEED = 28  # pixels
+VOLUME_SPEED = 0.008  # of full volume, so about 2 seconds from 0 to 100%
+STICK_INTERVAL_MS = 16
+STICK_DEADZONE = 0.2
 
 DPAD_DIRECTIONS = {
     BTN_DPAD_UP: Gtk.DirectionType.UP,
@@ -126,10 +128,12 @@ class ConsoleGamepad:
         on_action: Callable[[str], None],
         on_devices_changed: Callable[[list[str]], None],
         on_scroll: Callable[[float], None] | None = None,
+        on_volume: Callable[[float], None] | None = None,
     ) -> None:
         self._on_scroll = on_scroll
-        self._scroll_speed = 0.0
-        self._scroll_source: int | None = None
+        self._on_volume = on_volume
+        self._right_stick = [0.0, 0.0]  # x, y
+        self._stick_source: int | None = None
         self._triggers_pressed: set[int] = set()
         self._window = window
         self._on_action = on_action
@@ -188,7 +192,8 @@ class ConsoleGamepad:
         self._enabled = enabled
         if not enabled:
             self._stop_repeat()
-            self._set_scroll(0.0)
+            self._right_stick = [0.0, 0.0]
+            self._update_right_stick()
 
     # Devices
 
@@ -239,8 +244,11 @@ class ConsoleGamepad:
         if axis in TRIGGER_ACTIONS:
             self._on_trigger(axis, value)
             return
-        if axis == ABS_RY:
-            self._set_scroll(value if abs(value) > SCROLL_DEADZONE else 0.0)
+        if axis in (ABS_RX, ABS_RY):
+            self._right_stick[axis == ABS_RY] = (
+                value if abs(value) > STICK_DEADZONE else 0.0
+            )
+            self._update_right_stick()
             return
         if axis not in (ABS_X, ABS_Y):
             return
@@ -284,26 +292,31 @@ class ConsoleGamepad:
         elif value < TRIGGER_THRESHOLD / 2:
             self._triggers_pressed.discard(axis)
 
-    # Right stick scrolling
+    # Right stick: scroll and volume
 
-    def _set_scroll(self, speed: float) -> None:
-        self._scroll_speed = speed
-        if speed and self._enabled and self._on_scroll is not None:
-            if self._scroll_source is None:
-                self._scroll_source = GLib.timeout_add(
-                    SCROLL_INTERVAL_MS, self._scroll_tick
+    def _update_right_stick(self) -> None:
+        moving = any(self._right_stick)
+        if moving and self._enabled:
+            if self._stick_source is None:
+                self._stick_source = GLib.timeout_add(
+                    STICK_INTERVAL_MS, self._right_stick_tick
                 )
-        elif self._scroll_source is not None:
-            GLib.source_remove(self._scroll_source)
-            self._scroll_source = None
+        elif self._stick_source is not None:
+            GLib.source_remove(self._stick_source)
+            self._stick_source = None
 
-    def _scroll_tick(self) -> bool:
-        if not self._scroll_speed or self._on_scroll is None:
-            self._scroll_source = None
+    def _right_stick_tick(self) -> bool:
+        x, y = self._right_stick
+        if not (x or y):
+            self._stick_source = None
             return GLib.SOURCE_REMOVE
-        # Square the tilt so small pushes scroll slowly
-        speed = self._scroll_speed * abs(self._scroll_speed)
-        self._on_scroll(speed * SCROLL_SPEED)
+        # Only follow the main direction, so scrolling doesn't nudge volume.
+        # Squaring the tilt makes small pushes move slowly.
+        if abs(y) >= abs(x):
+            if self._on_scroll is not None:
+                self._on_scroll(y * abs(y) * SCROLL_SPEED)
+        elif self._on_volume is not None:
+            self._on_volume(x * abs(x) * VOLUME_SPEED)
         return GLib.SOURCE_CONTINUE
 
     # Focus movement with repeat
