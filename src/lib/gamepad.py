@@ -21,6 +21,8 @@ from typing import Callable
 import gi
 from gi.repository import GLib, Gtk
 
+from .spatial_focus import move_focus
+
 try:
     gi.require_version("Manette", "0.2")
     from gi.repository import Manette
@@ -336,6 +338,7 @@ class ConsoleGamepad:
             self._repeat_source = None
 
     def _move_focus(self, direction: Gtk.DirectionType) -> None:
-        # Same as pressing an arrow key: GTK moves focus from the current
-        # widget to the nearest one in that direction
-        self._window.child_focus(direction)
+        # Show the focus highlight, like after a real key press
+        self._window.set_focus_visible(True)
+        # Go to whatever is next on screen in that direction
+        move_focus(self._window, direction)

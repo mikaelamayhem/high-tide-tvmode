@@ -121,6 +121,11 @@ def _apply_css_scale(scale: float) -> None:
     window.console-mode *:focus-visible {{
         outline-width: {px(3)};
     }}
+    window.console-mode row:focus-visible,
+    window.console-mode flowboxchild:focus-visible,
+    window.console-mode .card-bg:focus-visible {{
+        outline-offset: -{px(3)};
+    }}
     """
 
     _css_provider = Gtk.CssProvider()
