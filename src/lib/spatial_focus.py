@@ -38,13 +38,16 @@ def _is_candidate(widget: Gtk.Widget) -> bool:
 
 
 def _search_root(window: Gtk.Window, focus: Gtk.Widget | None) -> Gtk.Widget:
-    """Stay inside an open dialog or popover if focus is in one."""
+    """Stay inside an open popover or dialog."""
     widget = focus
     while widget is not None:
         if isinstance(widget, (Adw.Dialog, Gtk.Popover)):
             return widget
         widget = widget.get_parent()
-    return window
+    # A dialog may be open while focus is still behind it
+    get_visible_dialog = getattr(window, "get_visible_dialog", None)
+    dialog = get_visible_dialog() if get_visible_dialog else None
+    return dialog if dialog is not None else window
 
 
 def _candidates(root: Gtk.Widget) -> list[Gtk.Widget]:
@@ -122,6 +125,9 @@ def move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
             focus = row
 
     root = _search_root(window, focus)
+    if root is not window and not focus.is_ancestor(root):
+        # Focus is behind an open dialog: jump into the dialog
+        return root.child_focus(Gtk.DirectionType.TAB_FORWARD)
     current = _bounds(focus, root)
     if current is None:
         return window.child_focus(direction)

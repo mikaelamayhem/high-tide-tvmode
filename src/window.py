@@ -293,12 +293,23 @@ class HighTideWindow(Adw.ApplicationWindow):
         if keyval in (Gdk.KEY_Escape, Gdk.KEY_BackSpace):
             if isinstance(self.get_focus(), (Gtk.Text, Gtk.TextView)):
                 return False
+            if self.get_visible_dialog():
+                # Dialogs handle Escape themselves
+                return False
             self.console_back()
             return True
         return False
 
+    # Buttons that still work while a dialog (like Preferences) is open.
+    # The rest would change things hidden behind the dialog.
+    CONSOLE_DIALOG_ACTIONS = (
+        "select", "back", "settings", "play-pause", "next", "previous"
+    )
+
     def on_console_action(self, action: str) -> None:
         """Handle a controller button press in console mode."""
+        if self.get_visible_dialog() and action not in self.CONSOLE_DIALOG_ACTIONS:
+            return
         match action:
             case "select":
                 self.console_select()
@@ -321,7 +332,7 @@ class HighTideWindow(Adw.ApplicationWindow):
             case "section-next":
                 self.console_next_section()
             case "settings":
-                self.get_application().activate_action("preferences", None)
+                self.console_toggle_settings()
 
     CONSOLE_TABS = ("player", "lyrics", "queue")
 
@@ -343,6 +354,8 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     def console_scroll(self, pixels: float) -> None:
         """Scroll the current page, for the right stick."""
+        if self.get_visible_dialog():
+            return
         page = self.navigation_view.get_visible_page()
         scrolled_window = getattr(page, "scrolled_window", None)
         if scrolled_window is None:
@@ -370,6 +383,14 @@ class HighTideWindow(Adw.ApplicationWindow):
         if focus is not None:
             focus.activate()
 
+    def console_toggle_settings(self) -> None:
+        """Open Preferences, or close it if it's already open."""
+        dialog = self.get_visible_dialog()
+        if dialog is None:
+            self.get_application().activate_action("preferences", None)
+        elif dialog is getattr(self.get_application(), "preferences", None):
+            dialog.close()
+
     def console_back(self) -> None:
         """Close the open popover or dialog, or go back one page."""
         widget = self.get_focus()
@@ -377,10 +398,16 @@ class HighTideWindow(Adw.ApplicationWindow):
             if isinstance(widget, Gtk.Popover):
                 widget.popdown()
                 return
-            if isinstance(widget, Adw.Dialog):
-                widget.close()
-                return
             widget = widget.get_parent()
+
+        # Check for a dialog even when focus isn't inside it, so B never
+        # changes the page hidden behind it
+        dialog = self.get_visible_dialog()
+        if dialog is not None:
+            if isinstance(dialog, Adw.PreferencesDialog) and dialog.pop_subpage():
+                return
+            dialog.close()
+            return
         self.navigation_view.pop()
 
     @Gtk.Template.Callback("copy_secret_service_override_command")
