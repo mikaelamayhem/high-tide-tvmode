@@ -61,5 +61,10 @@
       <summary>Console mode scale</summary>
       <description>How much bigger the interface is in console mode, in percent</description>
     </key>
+	  <key name="console-steam-keyboard" type="b">
+      <default>true</default>
+      <summary>Open Steam keyboard</summary>
+      <description>In console mode, open Steam's on-screen keyboard when a text field is selected</description>
+    </key>
 	</schema>
 </schemalist>

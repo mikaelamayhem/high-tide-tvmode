@@ -26,6 +26,7 @@ from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
+                  SteamKeyboardWatcher,
                   apply_console_mode, is_console_mode, scale_widget_sizes,
                   utils)
 from .login import LoginDialog
@@ -102,7 +103,11 @@ class HighTideWindow(Adw.ApplicationWindow):
             "run-background", self, "hide-on-close", Gio.SettingsBindFlags.DEFAULT
         )
 
+        self.steam_keyboard = SteamKeyboardWatcher(self)
         self.settings.connect("changed::console-mode", self.update_console_mode)
+        self.settings.connect(
+            "changed::console-steam-keyboard", self.update_console_mode
+        )
         self.settings.connect("changed::console-scale", self.update_console_mode)
         self.update_console_mode()
         # Enlarge the player bar cover art once at startup
@@ -232,10 +237,10 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     def update_console_mode(self, *args):
         """Apply console mode from the setting or the --console flag."""
-        apply_console_mode(
-            self,
-            is_console_mode(self.settings, self.get_application()),
-            self.settings.get_int("console-scale"),
+        enabled = is_console_mode(self.settings, self.get_application())
+        apply_console_mode(self, enabled, self.settings.get_int("console-scale"))
+        self.steam_keyboard.set_enabled(
+            enabled and self.settings.get_boolean("console-steam-keyboard")
         )
 
     @Gtk.Template.Callback("copy_secret_service_override_command")

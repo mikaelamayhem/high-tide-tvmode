@@ -191,6 +191,12 @@ class HighTideApplication(Adw.Application):
                 Gio.SettingsBindFlags.DEFAULT,
             )
             self.settings.bind(
+                "console-steam-keyboard",
+                builder.get_object("_console_keyboard_row"),
+                "active",
+                Gio.SettingsBindFlags.DEFAULT,
+            )
+            self.settings.bind(
                 "console-scale",
                 builder.get_object("_console_scale_row"),
                 "value",
