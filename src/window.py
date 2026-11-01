@@ -25,6 +25,7 @@ import tidalapi
 from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
+from .lib.steam_keyboard import open_steam_keyboard
 from .lib.console_hints import ConsoleGlyphs, ConsoleHintsBar, VolumeOsd
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
                   SteamKeyboardWatcher, console_mode, gamepad,
@@ -349,16 +350,14 @@ class HighTideWindow(Adw.ApplicationWindow):
                 self.player_object.play_next()
             case "previous":
                 self.player_object.play_previous()
-            case "search":
-                # Open Explore with the cursor in the search box, which
-                # also brings up the Steam keyboard
-                self.open_explore_page().focus_search()
+            case "discover":
+                self.console_toggle_discover()
+            case "home":
+                self.navigation_view.pop_to_tag("home")
             case "tab-next":
                 self.console_switch_tab(1)
             case "tab-previous":
                 self.console_switch_tab(-1)
-            case "section-next":
-                self.console_next_section()
             case "settings":
                 self.console_toggle_settings()
 
@@ -370,15 +369,6 @@ class HighTideWindow(Adw.ApplicationWindow):
         tabs = self.CONSOLE_TABS
         index = tabs.index(current) if current in tabs else 0
         self.sidebar_stack.set_visible_child_name(tabs[(index + step) % len(tabs)])
-
-    def console_next_section(self) -> None:
-        """Cycle Home, Explore and Collection."""
-        if self.home_button.get_active():
-            self.on_explore_button_clicked_func(None)
-        elif self.explore_button.get_active():
-            self.on_collection_button_clicked_func(None)
-        else:
-            self.on_home_button_clicked_func(None)
 
     def console_scroll(self, pixels: float) -> None:
         """Scroll the current page, for the right stick."""
@@ -409,16 +399,42 @@ class HighTideWindow(Adw.ApplicationWindow):
                 widget._on_click()
                 return
             widget = widget.get_parent()
+        if isinstance(focus, (Gtk.Text, Gtk.TextView)):
+            # A on a text box: start typing with Steam's keyboard
+            open_steam_keyboard()
+            return
         if focus is not None:
             focus.activate()
 
     def show_home_page(self) -> None:
         """Load the home page, with Liked Songs and playlists in console mode."""
         page = HTGenericPage.new_from_function(utils.session.home)
-        page.console_home = console_mode.is_enabled()
+        if console_mode.is_enabled():
+            page.console_view = "home"
         page.load()
         page.set_tag("home")
+        self.home_page = page
         self.navigation_view.replace([page])
+
+    def console_toggle_discover(self) -> None:
+        """Y: switch between the console Home and Discover pages."""
+        visible = self.navigation_view.get_visible_page()
+        if visible is not None and visible.get_tag() == "discover":
+            self.navigation_view.pop_to_tag("home")
+            return
+
+        self.navigation_view.pop_to_tag("home")
+        home_page = getattr(self, "home_page", None)
+
+        def home_feed():
+            # Reuse the feed Home already downloaded, if it has
+            feed = getattr(home_page, "page", None)
+            return feed if feed is not None else utils.session.home()
+
+        page = HTGenericPage.new_from_function(home_feed)
+        page.console_view = "discover"
+        page.set_tag("discover")
+        self.navigation_view.push(page.load())
 
     def console_toggle_settings(self) -> None:
         """Open Preferences, or close it if it's already open."""

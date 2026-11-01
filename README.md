@@ -65,17 +65,18 @@ handhelds (Steam Deck, SteamOS, CachyOS handheld edition and similar).
 - Turn it on in Preferences, or for one session with `high-tide --console`
   (also available as "Console Mode" in the app launcher's right-click menu).
 - **Interface size** makes text, buttons and album art bigger (100% to 250%).
-- **Controller**: D-pad moves, left stick left/right changes volume, right stick scrolls,
-  A selects,
-  B goes back, X plays/pauses, Y opens search, LB/RB switch the
-  Player/Lyrics/Queue tabs, LT/RT skip tracks, View cycles
-  Home/Explore/Collection and Menu opens Preferences. Button hints show at the bottom with Xbox, PlayStation or
-  Steam Deck icons. Needs libmanette (`libmanette` package).
-- **Home** shows Liked Songs and your playlists at the top; the
-  Home/Explore/Collection tabs are hidden. Button icons sit next to the
-  controls they operate, and a popup shows the volume as you change it.
-- **On-screen keyboard**: selecting a text field opens Steam's keyboard while
-  Steam is running in Big Picture or Game Mode.
+- **Controller**: D-pad moves, left stick changes volume, right stick
+  scrolls, A selects, B goes back, X plays/pauses, Y switches between Home
+  and Discover, LB/RB switch the Player/Lyrics/Queue tabs, LT/RT skip tracks,
+  View goes to Home and Menu opens or closes Preferences. Button hints show
+  with Xbox, PlayStation or Steam Deck icons, many right next to the control
+  they operate. Needs libmanette (`libmanette` package). If your controller
+  only works in Steam, add High Tide to Steam as a non-Steam game.
+- **Home** has a search box, your playlists, Liked Songs and your recent
+  items. **Discover** has the search box and the rest of the Tidal feed.
+  A popup shows the volume as you change it.
+- **On-screen keyboard**: pressing A on a text field (or clicking it) opens
+  Steam's keyboard while Steam is running in Big Picture or Game Mode.
 
 Sign in once in normal mode first; High Tide remembers your login.
 

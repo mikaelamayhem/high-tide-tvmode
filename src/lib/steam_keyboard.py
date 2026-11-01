@@ -89,7 +89,14 @@ class SteamKeyboardWatcher:
         self._last_was_text = False
 
     def _on_focus_changed(self, window: Gtk.Window, *args) -> None:
+        from . import spatial_focus
+
         focused = is_text_input(window.get_focus())
+        # With a controller, the keyboard opens when you press A on the
+        # text box instead, so moving past it doesn't pop it up
+        if spatial_focus.moving:
+            self._last_was_text = focused
+            return
         if self._enabled and focused and not self._last_was_text:
             open_steam_keyboard()
         self._last_was_text = focused

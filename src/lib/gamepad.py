@@ -60,13 +60,13 @@ BUTTON_ACTIONS = {
     BTN_SOUTH: "select",
     BTN_EAST: "back",
     BTN_WEST: "play-pause",
-    BTN_NORTH: "search",
+    BTN_NORTH: "discover",
     BTN_TL: "tab-previous",
     BTN_TR: "tab-next",
     BTN_TL2: "previous",
     BTN_TR2: "next",
     BTN_START: "settings",
-    BTN_SELECT: "section-next",
+    BTN_SELECT: "home",
 }
 
 # Triggers reported as axes: fire once when pushed past halfway

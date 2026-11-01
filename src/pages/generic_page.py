@@ -74,61 +74,97 @@ class HTGenericPage(Page):
     def _load_async(self) -> None:
         self.page = self.function()
 
+    # Console mode splits Tidal's home feed in two:
+    # "home" = search, your playlists, liked songs and the recent grid;
+    # "discover" = search and everything else from the feed.
+    console_view = None
+
     def _load_finish(self) -> None:
         self.set_title(self.page.title or "")
 
-        if getattr(self, "console_home", False):
+        if self.console_view is not None:
+            self._add_console_search()
+        if self.console_view == "home":
+            self.set_title(_("Home"))
             self._add_console_home_sections()
+        elif self.console_view == "discover":
+            self.set_title(_("Discover"))
 
         for category in self.page.categories:
-            items = [
-                item for item in getattr(category, "items", []) if item is not None
-            ]
+            is_shortcuts = isinstance(category, ShortcutList)
+            if self.console_view == "home" and not is_shortcuts:
+                continue
+            if self.console_view == "discover" and is_shortcuts:
+                continue
+            self._add_category(category)
 
-            if isinstance(category, TrackList) or all(
-                isinstance(item, Track) for item in items
-            ):
-                self.new_track_list_for(category.title, items)
+    def _add_category(self, category) -> None:
+        items = [item for item in getattr(category, "items", []) if item is not None]
 
-            elif isinstance(category, TextBlock):
-                self.append(
-                    Gtk.Label(
-                        justify=0,
-                        xalign=0,
-                        wrap=True,
-                        margin_start=12,
-                        margin_top=12,
-                        margin_bottom=12,
-                        margin_end=12,
-                        label=category.text,
-                    )
+        if isinstance(category, TrackList) or all(
+            isinstance(item, Track) for item in items
+        ):
+            self.new_track_list_for(category.title, items)
+
+        elif isinstance(category, TextBlock):
+            self.append(
+                Gtk.Label(
+                    justify=0,
+                    xalign=0,
+                    wrap=True,
+                    margin_start=12,
+                    margin_top=12,
+                    margin_bottom=12,
+                    margin_end=12,
+                    label=category.text,
                 )
+            )
 
-            elif isinstance(category, PageLinks):
-                self.new_link_carousel_for(category.title or _("More"), items)
+        elif isinstance(category, PageLinks):
+            self.new_link_carousel_for(category.title or _("More"), items)
 
-            elif isinstance(category, ShortcutList):
-                self.append(HTShorcutsWidget(items))
+        elif isinstance(category, ShortcutList):
+            self.append(HTShorcutsWidget(items))
 
-            elif isinstance(
-                category, (ItemList, HorizontalList, HorizontalListWithContext)
-            ):
-                self.new_carousel_for(category.title, items)
+        elif isinstance(
+            category, (ItemList, HorizontalList, HorizontalListWithContext)
+        ):
+            self.new_carousel_for(category.title, items)
+
+    def _add_console_search(self) -> None:
+        """A search box at the top of the console Home and Discover pages."""
+        from .search_page import HTSearchPage
+
+        builder = Gtk.Builder.new_from_resource(
+            "/io/github/nokse22/high-tide/ui/search_entry.ui"
+        )
+        search_entry = builder.get_object("search_entry")
+
+        def on_search(entry):
+            query = entry.get_text().strip()
+            if query:
+                utils.navigation_view.push(HTSearchPage(query).load())
+
+        self.signals.append(
+            (search_entry, search_entry.connect("activate", on_search))
+        )
+        self.append(search_entry)
+        self.search_entry = search_entry
 
     # How many liked songs to show on the console home page before "More"
     CONSOLE_LIKED_SONGS_SHOWN = 10
 
     def _add_console_home_sections(self) -> None:
-        """Console mode home: Liked Songs, then your playlists, at the top."""
+        """Console mode home: your playlists, then Liked Songs."""
 
         def all_liked_songs(limit=50, offset=0):
             return utils.favourite_tracks[offset : offset + limit]
 
+        self.new_carousel_for(
+            _("Your Playlists"), utils.playlist_and_favorite_playlists
+        )
         self.new_track_list_for(
             _("Liked Songs"),
             utils.favourite_tracks[: self.CONSOLE_LIKED_SONGS_SHOWN],
             more_function=all_liked_songs,
-        )
-        self.new_carousel_for(
-            _("Your Playlists"), utils.playlist_and_favorite_playlists
         )

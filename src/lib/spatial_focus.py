@@ -90,8 +90,10 @@ def _score(current, candidate, direction) -> float | None:
                 return None
         sideways = max(0.0, max(cx, x) - min(cx + cw, x + w))
         if sideways == 0:
-            # Overlapping: prefer the one most in line with the current
-            sideways = abs((x + w / 2) - (cx + cw / 2)) * 0.1
+            # Overlapping: prefer the one lined up with the current one's
+            # left edge, so going down from a wide row lands on the first
+            # card of a row of cards
+            sideways = abs(x - cx) * 0.1
     else:
         if direction == _RIGHT:
             ahead = x - (cx + cw)
@@ -103,13 +105,27 @@ def _score(current, candidate, direction) -> float | None:
                 return None
         sideways = max(0.0, max(cy, y) - min(cy + ch, y + h))
         if sideways == 0:
-            sideways = abs((y + h / 2) - (cy + ch / 2)) * 0.1
+            sideways = abs(y - cy) * 0.1
 
     return max(0.0, ahead) + sideways * _SIDEWAYS_WEIGHT
 
 
+# True while the controller is moving focus, so passing over a text box
+# doesn't pop up the on-screen keyboard
+moving = False
+
+
 def move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
     """Focus the nearest widget in a direction. Returns True if focus moved."""
+    global moving
+    moving = True
+    try:
+        return _move_focus(window, direction)
+    finally:
+        moving = False
+
+
+def _move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
     focus = window.get_focus()
     if focus is None:
         return window.child_focus(Gtk.DirectionType.TAB_FORWARD)
