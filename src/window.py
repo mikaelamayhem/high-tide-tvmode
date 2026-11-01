@@ -123,7 +123,13 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.settings.connect(
             "changed::console-button-style", self.update_console_mode
         )
-        self.settings.connect("changed::console-mode", self.update_console_mode)
+        self.settings.connect("changed::console-mode", self.on_console_setting_changed)
+
+        # Escape goes back a page in console mode (Steam Input often maps
+        # the B button to Escape)
+        console_keys = Gtk.EventControllerKey()
+        console_keys.connect("key-pressed", self.on_console_key_pressed)
+        self.add_controller(console_keys)
         self.settings.connect(
             "changed::console-steam-keyboard", self.update_console_mode
         )
@@ -269,6 +275,23 @@ class HighTideWindow(Adw.ApplicationWindow):
             style = gamepad.guess_button_style(device_names[0] if device_names else "")
         self.console_hints.set_style(style, console_mode.get_scale())
         self.console_hints.set_visible(enabled and bool(device_names))
+
+    def on_console_setting_changed(self, *args) -> None:
+        # Changing the setting overrides --console for the rest of the session
+        app = self.get_application()
+        if app is not None:
+            app.console_forced = False
+        self.update_console_mode()
+
+    def on_console_key_pressed(self, controller, keyval, keycode, state) -> bool:
+        if not console_mode.is_enabled():
+            return False
+        if keyval in (Gdk.KEY_Escape, Gdk.KEY_BackSpace):
+            if isinstance(self.get_focus(), (Gtk.Text, Gtk.TextView)):
+                return False
+            self.console_back()
+            return True
+        return False
 
     def on_console_action(self, action: str) -> None:
         """Handle a controller button press in console mode."""

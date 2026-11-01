@@ -14,6 +14,8 @@ controller support.
 """
 
 import logging
+import os
+from pathlib import Path
 from typing import Callable
 
 import gi
@@ -116,7 +118,7 @@ class ConsoleGamepad:
         self._starting = True
 
         if Manette is None:
-            logger.info("libmanette not found, controller support is off")
+            logger.warning("libmanette not found, controller support is off")
             return
 
         self._monitor = Manette.Monitor.new()
@@ -130,6 +132,28 @@ class ConsoleGamepad:
                 break
             self._add_device(device)
         self._starting = False
+        self._log_startup_state()
+
+    def _log_startup_state(self) -> None:
+        """Log what we can see, to help when no controller shows up."""
+        try:
+            events = sorted(Path("/dev/input").glob("event*"))
+        except OSError:
+            events = []
+        readable = [p for p in events if os.access(p, os.R_OK)]
+        logger.info(
+            "Controller support ready: %d controller(s) %s, "
+            "%d of %d input devices readable",
+            len(self._devices),
+            self.device_names,
+            len(readable),
+            len(events),
+        )
+        if events and not readable:
+            logger.warning(
+                "Can't read /dev/input. For Flatpak, allow it with: "
+                "flatpak override --user --device=input io.github.nokse22.high-tide"
+            )
 
     @property
     def device_names(self) -> list[str]:
