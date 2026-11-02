@@ -144,3 +144,101 @@
 dropdown button:not(:hover) {
   background-color: transparent;
 }
+/* Console mode: controller friendly layout, see src/lib/console_mode.py */
+
+/* The selected song, album or button gets a soft, rounded highlight
+   (like hovering with a mouse), with no outline rings */
+window.console-mode .card-bg:focus:focus-visible,
+window.console-mode flowboxchild:focus:focus-visible,
+window.console-mode .tracks-list-box row:focus:focus-visible,
+window.console-mode list row:focus:focus-visible,
+window.console-mode .console-more-tile:focus:focus-visible {
+  background-color: rgb(255 255 255 / 16%);
+  outline: none;
+  box-shadow: none;
+}
+
+window.console-mode .card-bg:focus:focus-visible {
+  border-radius: 14px;
+}
+
+window.console-mode list row:focus:focus-visible {
+  border-radius: 12px;
+}
+
+window.console-mode button.console-target:focus:focus-visible {
+  background-color: rgb(255 255 255 / 22%);
+  outline: none;
+}
+
+/* Colored buttons (like Play) keep their color and get a soft ring */
+window.console-mode button.console-target.suggested-action:focus:focus-visible {
+  background-color: var(--accent-bg-color);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 35%);
+}
+
+/* "More" at the end of a row or list */
+window.console-mode .console-more-tile {
+  padding: 0;
+  border-radius: 14px;
+}
+
+window.console-mode .console-more-art {
+  border-radius: 10px;
+  background-color: rgb(255 255 255 / 8%);
+}
+
+window.console-mode .console-more-tile .title-4 {
+  font-weight: bold;
+}
+
+window.console-mode .console-volume-osd {
+  padding: 18px 28px;
+  border-radius: 18px;
+  font-size: 1.4em;
+  font-weight: bold;
+}
+
+/* Console mode: see-through panels over the blurred album art */
+window.console-mode {
+  --window-bg-color: transparent;
+  --view-bg-color: transparent;
+  --headerbar-bg-color: transparent;
+  --headerbar-backdrop-color: transparent;
+  --headerbar-shade-color: transparent;
+  --sidebar-bg-color: rgb(0 0 0 / 25%);
+  --sidebar-backdrop-color: rgb(0 0 0 / 25%);
+  --sidebar-shade-color: transparent;
+  --card-bg-color: rgb(255 255 255 / 7%);
+  background: none;
+}
+
+/* Full width, in the same dark tone as the player panel on the left */
+window.console-mode .console-hints {
+  background-color: rgb(0 0 0 / 25%);
+  padding: 16px 24px;
+  font-size: 1.1em;
+}
+
+/* Dialogs and menus stay solid so their text is easy to read */
+window.console-mode dialog,
+window.console-mode popover {
+  --window-bg-color: #222226;
+  --view-bg-color: #1d1d20;
+  --headerbar-bg-color: #2e2e32;
+  --headerbar-backdrop-color: #222226;
+  --headerbar-shade-color: rgb(0 0 0 / 36%);
+  --sidebar-bg-color: #2e2e32;
+  --card-bg-color: rgb(255 255 255 / 8%);
+  --popover-bg-color: #36363a;
+  --dialog-bg-color: #2a2a2e;
+}
+
+window.console-mode dialog > floating-sheet > sheet,
+window.console-mode dialog sheet {
+  background-color: var(--window-bg-color);
+}
+
+.console-qr {
+  border-radius: 12px;
+}

@@ -23,7 +23,8 @@ from gi.repository import Gtk
 from tidalapi.media import Track
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import utils
+from ..lib import console_mode, utils
+from ..lib.console_more import new_more_row
 from .generic_track_widget import HTGenericTrackWidget
 
 
@@ -81,7 +82,20 @@ class HTTracksListWidget(Gtk.Box, IDisconnectable):
         Args:
             function: a callable returning the full list of tracks"""
         self.get_function = function
-        self.more_button.set_visible(True)
+        if console_mode.is_enabled():
+            # A "More" row after the last song, where the D-pad reaches it
+            self._more_row = getattr(self, "_more_row", None) or new_more_row()
+            self._keep_more_row_last()
+        else:
+            self.more_button.set_visible(True)
+
+    def _keep_more_row_last(self) -> None:
+        row = getattr(self, "_more_row", None)
+        if row is None:
+            return
+        if row.get_parent() is not None:
+            self.tracks_list_box.remove(row)
+        self.tracks_list_box.append(row)
 
     def set_tracks_list(self, tracks_list: List[Track]) -> None:
         self.tracks = tracks_list
@@ -94,6 +108,7 @@ class HTTracksListWidget(Gtk.Box, IDisconnectable):
             self.disconnectables.append(listing)
             listing.set_name(str(index))
             self.tracks_list_box.append(listing)
+        self._keep_more_row_last()
 
     def _on_more_clicked(self, *args) -> None:
         from ..pages import HTFromFunctionPage
@@ -104,6 +119,9 @@ class HTTracksListWidget(Gtk.Box, IDisconnectable):
         utils.navigation_view.push(page)
 
     def _on_tracks_row_selected(self, list_box, row) -> None:
+        if row.get_name() == "more":
+            self._on_more_clicked()
+            return
         index = int(row.get_name())
 
         utils.player_object.play_this(self.tracks, index)

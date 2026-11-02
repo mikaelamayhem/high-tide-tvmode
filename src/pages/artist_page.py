@@ -110,6 +110,10 @@ class HTArtistPage(Page):
         )
 
         shuffle_btn = builder.get_object("_shuffle_button")
+        # Play and Shuffle can be selected with the controller
+        for button in (builder.get_object("_play_button"), shuffle_btn):
+            button._ht_console_target = True
+            button.add_css_class("console-target")
         self.signals.append(
             (
                 shuffle_btn,

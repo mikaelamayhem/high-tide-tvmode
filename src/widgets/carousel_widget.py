@@ -22,7 +22,9 @@ from typing import Callable
 from gi.repository import GLib, Gtk, Adw
 
 from ..disconnectable_iface import IDisconnectable
+from ..lib import console_mode
 from ..lib import utils
+from ..lib.console_more import new_more_tile
 from ..widgets.card_widget import HTCardWidget
 
 
@@ -69,6 +71,15 @@ class HTCarouselWidget(Gtk.Box, IDisconnectable):
         self.title = _title
         self.title_label.set_label(self.title)
 
+        # Console mode: the controller scrolls by moving between cards and
+        # "More" is an album-sized tile at the end, so the header buttons go
+        self._console = console_mode.is_enabled()
+        self._more_tile = None
+        if self._console:
+            for button in (self.prev_button, self.next_button, self.more_button):
+                button.set_focusable(False)
+                button.set_visible(False)
+
         self.more_function = None
 
         self.items = []
@@ -85,8 +96,19 @@ class HTCarouselWidget(Gtk.Box, IDisconnectable):
         Args:
             function: A callable that returns page content
         """
-        self.more_button.set_visible(True)
+        self._show_more()
         self.more_function = function
+
+    def _show_more(self) -> None:
+        if not self._console:
+            self.more_button.set_visible(True)
+            return
+        if self._more_tile is None:
+            self._more_tile = new_more_tile(self.on_more_clicked)
+        if self._more_tile.get_parent() is not None:
+            # Keep it last
+            self.cards_box.remove(self._more_tile)
+        self.cards_box.append(self._more_tile)
 
     def set_items(self, items_list) -> None:
         """Set the list of items to display in the carousel.
@@ -101,12 +123,15 @@ class HTCarouselWidget(Gtk.Box, IDisconnectable):
         cards_added = 0
         for index, item in enumerate(self.items):
             if index >= 8:
-                self.more_button.set_visible(True)
+                self._show_more()
                 break
             card = HTCardWidget(item)
             self.disconnectables.append(card)
             self.cards_box.append(card)
             cards_added += 1
+
+        if self._more_tile is not None and self._more_tile.get_parent() is not None:
+            self._show_more()  # move it back to the end
 
         if cards_added > 1:
             self.next_button.set_sensitive(True)

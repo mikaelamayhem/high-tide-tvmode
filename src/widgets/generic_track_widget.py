@@ -25,7 +25,7 @@ from gi.repository import Gio, GLib, GObject, Gtk
 from tidalapi.playlist import UserPlaylist
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import utils
+from ..lib import scale_widget_sizes, utils
 
 import logging
 
@@ -44,6 +44,9 @@ class HTGenericTrackWidget(Gtk.ListBoxRow, IDisconnectable):
     """
 
     __gtype_name__ = "HTGenericTrackWidget"
+
+    # The controller's D-pad can land on this (see spatial_focus.py)
+    _ht_console_target = True
 
     image = Gtk.Template.Child()
     now_playing_indicator = Gtk.Template.Child()
@@ -66,6 +69,7 @@ class HTGenericTrackWidget(Gtk.ListBoxRow, IDisconnectable):
     def __init__(self, track):
         IDisconnectable.__init__(self)
         super().__init__()
+        scale_widget_sizes(self)
 
         self.menu_activated = False
         self.track = track

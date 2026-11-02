@@ -40,6 +40,9 @@ class HTShorcutWidget(Gtk.FlowBoxChild, IDisconnectable):
 
     __gtype_name__ = "HTShorcutWidget"
 
+    # The controller's D-pad can land on this (see spatial_focus.py)
+    _ht_console_target = True
+
     title_label = Gtk.Template.Child()
     subtitle_label = Gtk.Template.Child()
     image = Gtk.Template.Child()

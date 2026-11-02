@@ -25,7 +25,17 @@ import tidalapi
 from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
 from tidalapi.media import Quality
 
-from .lib import HTCache, PlayerObject, RepeatType, SecretStore, utils
+from .lib.steam_keyboard import open_steam_keyboard
+from .lib.console_background import ConsoleBackground
+from .lib.console_slide import ConsoleTabSlide
+from .lib.console_fixed_layout import FixedLayoutBin
+from .lib.console_tabs import CONSOLE_TAB_TAGS, ConsolePanelPage, ConsoleTabBar
+from .lib.console_hints import ConsoleGlyphs, ConsoleHintsBar, VolumeOsd
+from .lib import spatial_focus
+from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
+                  SteamKeyboardWatcher, console_mode, gamepad,
+                  apply_console_mode, is_console_mode, scale_widget_sizes,
+                  utils)
 from .login import LoginDialog
 from .mpris import MPRIS
 from .pages import (HTAlbumPage, HTArtistPage, HTCollectionPage, HTExplorePage,
@@ -84,6 +94,7 @@ class HighTideWindow(Adw.ApplicationWindow):
     copy_share_link = Gtk.Template.Child()
 
     secret_portal_dialog = Gtk.Template.Child()
+    player_headerbar = Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -99,6 +110,115 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.settings.bind(
             "run-background", self, "hide-on-close", Gio.SettingsBindFlags.DEFAULT
         )
+
+        self.steam_keyboard = SteamKeyboardWatcher(self)
+
+        # Console mode: button hints under the normal content
+        self.console_hints = ConsoleHintsBar()
+        self.console_hints._ht_console_scaled = True
+        main_content = self.get_content()
+        self.set_content(None)
+        main_content.set_vexpand(True)
+        console_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        console_box.append(main_content)
+        console_box.append(self.console_hints)
+        # Volume popup floats over everything
+        self.volume_osd = VolumeOsd()
+        # In console mode the blurred album art sits behind everything
+        self.console_background = ConsoleBackground()
+        self.console_background.set_visible(False)
+        console_overlay = Gtk.Overlay(child=self.console_background)
+        console_overlay.add_overlay(console_box)
+        console_overlay.set_measure_overlay(console_box, True)
+        console_overlay.add_overlay(self.volume_osd)
+        # Draws the sideways slide when LB/RB change tabs
+        self.console_tab_slide = ConsoleTabSlide()
+        console_overlay.add_overlay(self.console_tab_slide)
+        # Console mode: lay everything out at one fixed size and scale it
+        # to the window, so it looks the same at any resolution
+        self.console_fixed_layout = FixedLayoutBin(console_overlay)
+        self.set_content(self.console_fixed_layout)
+        self.playing_track_picture.connect(
+            "notify::paintable",
+            lambda picture, *_: self.console_background.set_paintable(
+                picture.get_paintable()
+            ),
+        )
+
+        # Button icons next to the controls they operate
+        self.console_glyphs = ConsoleGlyphs()
+        next_button = self.play_button.get_next_sibling()
+        self.console_glyphs.add_below(self.go_prev_button, "lt")
+        self.console_glyphs.add_below(self.play_button, "x")
+        if next_button is not None:
+            self.console_glyphs.add_below(next_button, "rt")
+        self._console_home_enabled = False
+
+        # Console mode: Home, Discover, Queue and Lyrics are tabs on the
+        # right; the left side always shows the album art and controls
+        self.console_tabs = ConsoleTabBar(self.console_glyphs, self.console_go_to_tab)
+        self.console_tabs.set_visible(False)
+        self._install_console_tabs()
+        self.console_queue_page = ConsolePanelPage("queue", _("Queue"))
+        self.console_lyrics_page = ConsolePanelPage("lyrics", _("Lyrics"))
+        self._console_panels_moved = False
+        self._console_tab = "home"
+        self._install_console_navigation()
+        # In the player sidebar the D-pad only reaches the row of song
+        # buttons (see _arrange_console_player)
+        self.console_focus_skip = []
+        self._console_player_arranged = False
+        self._transport_row = self.shuffle_button.get_parent()
+        self._song_actions_row = self.in_my_collection_button.get_parent()
+        for button in (
+            self.shuffle_button,
+            self.repeat_button,
+            self.in_my_collection_button,
+            self.track_radio_button,
+            self.album_button,
+            self.copy_share_link,
+        ):
+            button._ht_console_target = True
+            button.add_css_class("console-target")
+        # The stick seeks in console mode; scrolling over the bar shouldn't
+        scroll_blocker = Gtk.EventControllerScroll(
+            flags=Gtk.EventControllerScrollFlags.BOTH_AXES
+        )
+        scroll_blocker.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        scroll_blocker.connect(
+            "scroll", lambda *_: console_mode.is_enabled()
+        )
+        self.progress_bar.add_controller(scroll_blocker)
+
+        self.gamepad = gamepad.ConsoleGamepad(
+            self,
+            self.on_console_action,
+            self.update_console_mode,
+            self.console_scroll,
+            self.console_change_volume,
+            self.console_seek,
+        )
+        self._console_seek_target: float | None = None
+        self.settings.connect(
+            "changed::console-button-style", self.update_console_mode
+        )
+        self.settings.connect("changed::console-mode", self.on_console_setting_changed)
+
+        # Escape goes back a page in console mode (Steam Input often maps
+        # the B button to Escape)
+        console_keys = Gtk.EventControllerKey()
+        console_keys.connect("key-pressed", self.on_console_key_pressed)
+        self.add_controller(console_keys)
+        self.settings.connect(
+            "changed::console-steam-keyboard", self.update_console_mode
+        )
+        self.settings.connect("changed::console-scale", self.update_console_mode)
+        self.settings.connect(
+            "changed::console-scale-auto", self.update_console_mode
+        )
+        self.update_console_mode()
+        # Enlarge the player bar cover art once at startup
+        scale_widget_sizes(self)
 
         self.create_action_with_target(
             "push-artist-page", GLib.VariantType.new("s"), self.on_push_artist_page
@@ -222,6 +342,411 @@ class HighTideWindow(Adw.ApplicationWindow):
 
         threading.Thread(target=utils.evict_cache, args=(utils.MUSIC_DIR, 5)).start()
 
+    def update_console_mode(self, *args):
+        """Apply console mode from the setting or the --console flag."""
+        enabled = is_console_mode(self.settings, self.get_application())
+        apply_console_mode(
+            self,
+            enabled,
+            self.settings.get_int("console-scale"),
+            self.settings.get_boolean("console-scale-auto"),
+        )
+        self.console_fixed_layout.set_enabled(console_mode.is_fixed_layout())
+        self.steam_keyboard.set_enabled(
+            enabled and self.settings.get_boolean("console-steam-keyboard")
+        )
+        self.gamepad.set_enabled(enabled)
+
+        device_names = self.gamepad.device_names
+        style = self.settings.get_string("console-button-style")
+        if style not in gamepad.BUTTON_STYLES:
+            style = gamepad.guess_button_style(device_names[0] if device_names else "")
+        show_buttons = enabled and bool(device_names)
+        self.console_hints.set_style(style, console_mode.get_scale())
+        self.console_hints.set_visible(show_buttons)
+        self.console_glyphs.set_style(style, console_mode.get_scale(), show_buttons)
+
+        self.console_background.set_visible(enabled)
+        self.console_tabs.set_visible(enabled)
+        self._move_console_panels(enabled)
+        self._arrange_console_player(enabled)
+
+        # Console home has Liked Songs and playlists, so the tabs aren't needed
+        self.navigation_buttons.set_visible(not enabled)
+        if enabled != self._console_home_enabled:
+            self._console_home_enabled = enabled
+            if getattr(self, "is_logged_in", False):
+                self.show_home_page()
+
+    def _arrange_console_player(self, enabled: bool) -> None:
+        """Console mode: shuffle and repeat join the song buttons row.
+
+        The left stick sets the volume, so the volume button makes way and
+        the row reads: shuffle, repeat, like, radio, album, share.
+        """
+        if enabled == self._console_player_arranged:
+            return
+        self._console_player_arranged = enabled
+        self.volume_button.set_visible(not enabled)
+        self.progress_bar.set_focusable(not enabled)
+        for button in (self.shuffle_button, self.repeat_button):
+            button.get_parent().remove(button)
+        if enabled:
+            self._song_actions_row.prepend(self.repeat_button)
+            self._song_actions_row.prepend(self.shuffle_button)
+        else:
+            self._transport_row.prepend(self.shuffle_button)
+            self._transport_row.append(self.repeat_button)
+
+    def on_console_setting_changed(self, *args) -> None:
+        # Changing the setting overrides --console for the rest of the session
+        app = self.get_application()
+        if app is not None:
+            app.console_forced = False
+        self.update_console_mode()
+
+    def on_console_key_pressed(self, controller, keyval, keycode, state) -> bool:
+        if not console_mode.is_enabled():
+            return False
+        if keyval in (Gdk.KEY_Escape, Gdk.KEY_BackSpace):
+            if isinstance(self.get_focus(), (Gtk.Text, Gtk.TextView)):
+                return False
+            if self.get_visible_dialog():
+                # Dialogs handle Escape themselves
+                return False
+            self.console_back()
+            return True
+        return False
+
+    # Buttons that still work while a dialog (like Preferences) is open.
+    # The rest would change things hidden behind the dialog.
+    CONSOLE_DIALOG_ACTIONS = (
+        "select", "back", "settings", "play-pause", "next", "previous"
+    )
+
+    def on_console_action(self, action: str) -> None:
+        """Handle a controller button press in console mode."""
+        if self.get_visible_dialog() and action not in self.CONSOLE_DIALOG_ACTIONS:
+            return
+        match action:
+            case "select":
+                self.console_select()
+            case "back":
+                self.console_back()
+            case "play-pause":
+                self.player_object.play_pause()
+            case "next":
+                self.player_object.play_next()
+            case "previous":
+                self.player_object.play_previous()
+            case "search":
+                self.console_focus_search()
+            case "home":
+                self.console_go_to_tab("home")
+            case "tab-next":
+                self.console_switch_tab(1)
+            case "tab-previous":
+                self.console_switch_tab(-1)
+            case "settings":
+                self.console_toggle_settings()
+
+    def console_scroll(self, pixels: float) -> None:
+        """Scroll the current page, for the right stick."""
+        if self.get_visible_dialog():
+            return
+        page = self.navigation_view.get_visible_page()
+        scrolled_window = getattr(page, "scrolled_window", None)
+        if scrolled_window is None:
+            # Queue and Lyrics: use the first list that scrolls up and down
+            scrolled_window = spatial_focus.find_vertical_scroller(page)
+        if scrolled_window is None:
+            return
+        adjustment = scrolled_window.get_vadjustment()
+        adjustment.set_value(adjustment.get_value() + pixels)
+
+    def console_seek(self, seconds: float | None) -> None:
+        """Right stick left/right: move through the song.
+
+        While the stick is held the bar and time move smoothly; the song
+        jumps there when the stick is let go.
+        """
+        duration = self.player_object.duration / Gst.SECOND
+        if seconds is None:
+            if self._console_seek_target is not None and duration:
+                self.player_object.seek(self._console_seek_target / duration)
+            self._console_seek_target = None
+            return
+        if not duration:
+            return
+        if self._console_seek_target is None:
+            position = self.player_object.query_position(default=0) / Gst.SECOND
+            self._console_seek_target = position
+        target = min(duration - 1, max(0.0, self._console_seek_target + seconds))
+        self._console_seek_target = target
+        fraction = target / duration
+        self.progress_bar.get_adjustment().set_value(fraction)
+        self.small_progress_bar.set_fraction(fraction)
+        self.time_played_label.set_label(utils.pretty_duration(target))
+        self.previous_fraction = fraction
+
+    def console_change_volume(self, delta: float) -> None:
+        """Nudge the volume, for the right stick."""
+        adjustment = self.volume_button.get_adjustment()
+        adjustment.set_value(
+            min(adjustment.get_upper(), max(0.0, adjustment.get_value() + delta))
+        )
+        self.volume_osd.show_volume(adjustment.get_value() / adjustment.get_upper())
+
+    def console_select(self) -> None:
+        """Activate the focused widget, like a click."""
+        focus = self.get_focus()
+        widget = focus
+        # Cards and top hits are clicked through a gesture, not activate()
+        while widget is not None:
+            if hasattr(widget, "_on_click"):
+                widget._on_click()
+                return
+            widget = widget.get_parent()
+        if isinstance(focus, (Gtk.Text, Gtk.TextView)):
+            # A on a text box: start typing with Steam's keyboard
+            open_steam_keyboard()
+            return
+        if focus is not None:
+            focus.activate()
+
+    def show_home_page(self) -> None:
+        """Load the home page, with Liked Songs and playlists in console mode."""
+        page = HTGenericPage.new_from_function(utils.session.home)
+        if console_mode.is_enabled():
+            page.console_view = "home"
+        page.load()
+        page.set_tag("home")
+        self.home_page = page
+        # Discover is built from Home's feed, so make it again next time
+        old_discover = getattr(self, "_discover_page", None)
+        self._discover_page = None
+        self._nav_replace([page])
+        if old_discover is not None and old_discover.get_parent() is None:
+            old_discover.disconnect_all()
+
+    def _install_console_tabs(self) -> bool:
+        """Put the console tabs above the main content (right-hand side)."""
+        content_toolbar = self.navigation_buttons.get_ancestor(Adw.ToolbarView)
+        if content_toolbar is None:
+            # The layout isn't built yet; try again once it is
+            GLib.idle_add(self._install_console_tabs)
+            return GLib.SOURCE_REMOVE
+        content_toolbar.add_top_bar(self.console_tabs)
+        return GLib.SOURCE_REMOVE
+
+    def _move_console_panels(self, enabled: bool) -> None:
+        """Move Queue and Lyrics between the sidebar and the console tabs."""
+        if enabled == self._console_panels_moved:
+            return
+        self._console_panels_moved = enabled
+        panels = (
+            (self.lyrics_widget, self.console_lyrics_page, "lyrics",
+             _("Lyrics"), "chat-bubble-text-symbolic"),
+            (self.queue_widget, self.console_queue_page, "queue",
+             _("Queue"), "view-list-ordered-symbolic"),
+        )
+        if enabled:
+            self.sidebar_stack.set_visible_child_name("player")
+            for widget, page, *_rest in panels:
+                self.sidebar_stack.remove(widget)
+                page.set_child(widget)
+        else:
+            for tag in ("queue", "lyrics"):
+                if self.navigation_view.find_page(tag):
+                    self.navigation_view.pop_to_tag("home")
+            for widget, page, name, title, icon in panels:
+                page.set_child(None)
+                self.sidebar_stack.add_titled_with_icon(widget, name, title, icon)
+        # Only the player is left in the sidebar, so hide its tab switcher
+        self.player_headerbar.get_title_widget().set_visible(not enabled)
+
+    def console_go_to_tab(self, tag: str, direction: int | None = None) -> None:
+        """Show one of the console tabs: home, discover, queue or lyrics.
+
+        The new tab slides in from the right when it's further along the
+        tab bar (or direction is 1), from the left otherwise.
+        """
+        tags = CONSOLE_TAB_TAGS
+        if direction is None:
+            old_index = tags.index(self._console_tab) if self._console_tab in tags else 0
+            direction = 1 if tags.index(tag) >= old_index else -1
+        self._console_tab = tag
+        self.console_tabs.set_current(tag)
+        visible = self.navigation_view.get_visible_page()
+        if visible is not None and visible.get_tag() == tag:
+            return
+
+        def switch():
+            self._nav_without_animation(self._nav_pop_to_tag, "home")
+            if tag == "discover":
+                self._nav_without_animation(self._nav_push, self._new_discover_page())
+            elif tag == "queue":
+                self._nav_without_animation(self._nav_push, self.console_queue_page)
+            elif tag == "lyrics":
+                self._nav_without_animation(self._nav_push, self.console_lyrics_page)
+
+        self._console_slide(switch, direction)
+
+    def _install_console_navigation(self) -> None:
+        """Route page changes through one sideways slide in console mode.
+
+        Everything (tabs, opening an album, going back) then moves the same
+        way. Pages are opened once their content has loaded, so the slide
+        shows the real page instead of a spinner.
+        """
+        nav = self.navigation_view
+        self._nav_push = nav.push
+        self._nav_pop = nav.pop
+        self._nav_pop_to_tag = nav.pop_to_tag
+        self._nav_replace = nav.replace
+
+        def push(page):
+            if not console_mode.is_enabled():
+                return self._nav_push(page)
+            self._console_push(page)
+
+        def pop():
+            if not console_mode.is_enabled():
+                return self._nav_pop()
+            if len(nav.get_navigation_stack()) <= 1:
+                return False
+            self._console_slide(
+                lambda: self._nav_without_animation(self._nav_pop), -1
+            )
+            return True
+
+        # Pages call utils.navigation_view.push(), which is this same object
+        nav.push = push
+        nav.pop = pop
+
+    def _nav_without_animation(self, function, *args):
+        self.navigation_view.set_animate_transitions(False)
+        try:
+            return function(*args)
+        finally:
+            self.navigation_view.set_animate_transitions(True)
+
+    # Longest wait for a page's content before opening it anyway
+    CONSOLE_PAGE_WAIT_MS = 1500
+
+    def _console_push(self, page) -> None:
+        def open_page(*_args):
+            if getattr(page, "_ht_console_opened", False):
+                return GLib.SOURCE_REMOVE
+            page._ht_console_opened = True
+            scale_widget_sizes(page)
+            self._console_slide(
+                lambda: self._nav_without_animation(self._nav_push, page), 1
+            )
+            return GLib.SOURCE_REMOVE
+
+        page._ht_console_opened = False
+        stack = getattr(page, "content_stack", None)
+        if stack is None or stack.get_visible_child_name() != "loading":
+            open_page()
+            return
+        handler = stack.connect("notify::visible-child-name", open_page)
+        GLib.timeout_add(self.CONSOLE_PAGE_WAIT_MS, open_page)
+        # Don't keep the handler around after the page is open
+        GLib.timeout_add(
+            self.CONSOLE_PAGE_WAIT_MS + 100,
+            lambda: stack.disconnect(handler) and False,
+        )
+
+    def _console_slide(self, switch, direction: int) -> None:
+        """Change page with the sideways slide, then select the first item."""
+
+        def switch_and_focus():
+            switch()
+            GLib.idle_add(self._console_focus_page)
+
+        self.console_tab_slide.switch(
+            self.navigation_view,
+            self.navigation_view.get_visible_page,
+            switch_and_focus,
+            direction,
+        )
+
+    def _console_focus_page(self) -> bool:
+        """Select the first song or card on the page now showing."""
+        page = self.navigation_view.get_visible_page()
+        if page is not None and self.get_visible_dialog() is None:
+            spatial_focus.focus_first(self, page)
+        return GLib.SOURCE_REMOVE
+
+    def console_switch_tab(self, step: int) -> None:
+        """LB/RB: go to the previous or next console tab."""
+        tags = CONSOLE_TAB_TAGS
+        index = tags.index(self._console_tab) if self._console_tab in tags else 0
+        self.console_go_to_tab(tags[(index + step) % len(tags)], step)
+
+    def _new_discover_page(self):
+        """The Discover tab's page, built once and kept between visits."""
+        page = getattr(self, "_discover_page", None)
+        if page is not None:
+            return page
+        home_page = getattr(self, "home_page", None)
+
+        def home_feed():
+            # Reuse the feed Home already downloaded, if it has
+            feed = getattr(home_page, "page", None)
+            return feed if feed is not None else utils.session.home()
+
+        page = HTGenericPage.new_from_function(home_feed)
+        page.console_view = "discover"
+        page.set_tag("discover")
+        self._discover_page = page
+        return page.load()
+
+    def console_focus_search(self) -> None:
+        """Y: jump to the search box and start typing."""
+        visible = self.navigation_view.get_visible_page()
+        if getattr(visible, "search_entry", None) is None:
+            self.console_go_to_tab("home")
+            visible = self.navigation_view.get_visible_page()
+        search_entry = getattr(visible, "search_entry", None)
+        if search_entry is not None:
+            self.set_focus_visible(True)
+            search_entry.grab_focus()
+            open_steam_keyboard()
+
+    def console_toggle_settings(self) -> None:
+        """Open Preferences, or close it if it's already open."""
+        dialog = self.get_visible_dialog()
+        if dialog is None:
+            self.get_application().activate_action("preferences", None)
+        elif dialog is getattr(self.get_application(), "preferences", None):
+            dialog.close()
+
+    def console_back(self) -> None:
+        """Close the open popover or dialog, or go back one page."""
+        widget = self.get_focus()
+        while widget is not None:
+            if isinstance(widget, Gtk.Popover):
+                widget.popdown()
+                return
+            widget = widget.get_parent()
+
+        # Check for a dialog even when focus isn't inside it, so B never
+        # changes the page hidden behind it
+        dialog = self.get_visible_dialog()
+        if dialog is not None:
+            if isinstance(dialog, Adw.PreferencesDialog) and dialog.pop_subpage():
+                return
+            dialog.close()
+            return
+        # B goes back through pages opened inside the current tab, but
+        # never from one tab to another (that's what LB/RB are for)
+        visible = self.navigation_view.get_visible_page()
+        if visible is not None and visible.get_tag() in CONSOLE_TAB_TAGS:
+            return
+        self.navigation_view.pop()
+
     @Gtk.Template.Callback("copy_secret_service_override_command")
     def copy_secret_service_override_command (self, *args):
         clipboard = Gdk.Display().get_default().get_clipboard()
@@ -237,6 +762,15 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     def new_login(self):
         """Open a new login dialog for user authentication"""
+
+        if console_mode.is_enabled():
+            # No typing on a TV: sign in by scanning a QR code with a phone
+            from .console_login import ConsoleLoginDialog
+
+            ConsoleLoginDialog(self, self.session, console_mode.get_scale()).present(
+                self
+            )
+            return
 
         login_dialog = LoginDialog(self, self.session)
         login_dialog.present(self)
@@ -279,9 +813,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         """Handle successful user login"""
         logger.info("logged in")
 
-        page = HTGenericPage.new_from_function(utils.session.home).load()
-        page.set_tag("home")
-        self.navigation_view.replace([page])
+        self.show_home_page()
 
         self.player_lyrics_queue.set_sensitive(True)
         self.navigation_buttons.set_sensitive(True)
@@ -533,12 +1065,18 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback("on_explore_button_clicked")
     def on_explore_button_clicked_func(self, widget):
-        if self.navigation_view.find_page("explore"):
+        self.open_explore_page()
+
+    def open_explore_page(self):
+        """Show the Explore page, opening it if needed, and return it."""
+        page = self.navigation_view.find_page("explore")
+        if page:
             self.navigation_view.pop_to_tag("explore")
-            return
+            return page
 
         page = HTExplorePage().load()
         self.navigation_view.push(page)
+        return page
 
     @Gtk.Template.Callback("on_collection_button_clicked")
     def on_collection_button_clicked_func(self, widget):
@@ -619,11 +1157,18 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback("on_navigation_view_page_popped")
     def on_navigation_view_page_popped_func(self, nav_view, nav_page):
+        if nav_page is getattr(self, "_discover_page", None):
+            # Kept for the next visit to the Discover tab
+            return
         nav_page.disconnect_all()
 
     @Gtk.Template.Callback("on_visible_page_changed")
     def on_visible_page_changed(self, nav_view, *args):
-        match self.navigation_view.get_visible_page().get_tag():
+        tag = self.navigation_view.get_visible_page().get_tag()
+        if tag in CONSOLE_TAB_TAGS and hasattr(self, "console_tabs"):
+            self._console_tab = tag
+            self.console_tabs.set_current(tag)
+        match tag:
             case "home":
                 self.home_button.set_active(True)
             case "explore":
@@ -654,6 +1199,9 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.volume_button.get_adjustment().set_value(self.player_object.query_volume())
         self.duration_label.set_label(utils.pretty_duration(end_value))
 
+        if getattr(self, "_console_seek_target", None) is not None:
+            # The right stick is previewing a seek
+            return
         position_ns = self.player_object.query_position(default=None)
         if position_ns is None:
             self.time_played_label.set_label(utils.pretty_duration(0))

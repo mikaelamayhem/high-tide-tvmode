@@ -11,6 +11,7 @@
         "--device=dri",
         "--socket=wayland",
         "--socket=pulseaudio",
+        "--device=input",
         "--filesystem=xdg-run/pipewire-0:ro",
         "--filesystem=xdg-run/discord-ipc-0"
     ],
@@ -31,6 +32,7 @@
         "alsa-utils.json",
         "python3-pypresence.json",
         "python3-six.json",
+        "python3-segno.json",
         "python3-tidalapi.json",
         {
             "name": "high-tide",
