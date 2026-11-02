@@ -92,10 +92,14 @@ def get_alsa_devices() -> List[dict]:
         alsa_devices = get_alsa_devices_from_aplay()
     except (
         subprocess.CalledProcessError,
-        FileNotFoundError,
+        OSError,
         subprocess.TimeoutExpired,
     ):
-        alsa_devices = get_alsa_devices_from_proc()
+        try:
+            alsa_devices = get_alsa_devices_from_proc()
+        except OSError:
+            # No ALSA access (for example on Android): only offer the default
+            alsa_devices = [{"hw_device": "default", "name": _("Default")}]
     return alsa_devices
 
 
