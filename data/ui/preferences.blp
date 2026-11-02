@@ -56,5 +56,39 @@ Adw.PreferencesDialog _preference_window {
         title: _("Enable Discord Rich Presence");
       }
     }
+
+    Adw.PreferencesGroup {
+      title: _("Console Mode");
+      Adw.SwitchRow _console_mode_row {
+        title: _("Console mode");
+        subtitle: _("Full screen, controller friendly layout for TVs and handhelds. Can also be turned on for one session with --console");
+      }
+      Adw.SpinRow _console_scale_row {
+        title: _("Interface size");
+        subtitle: _("In percent. Album art updates when a page is opened again");
+        adjustment: Adjustment {
+          lower: 100;
+          upper: 250;
+          step-increment: 10;
+          page-increment: 25;
+        };
+      }
+      Adw.ComboRow _console_button_style_row {
+        title: _("Button icons");
+        subtitle: _("Steam Input can make every controller look like an Xbox pad, so pick yours here if the icons are wrong");
+        model: StringList {
+          strings [
+            _("Automatic"),
+            "Xbox",
+            "PlayStation",
+            "Steam Deck",
+          ]
+        };
+      }
+      Adw.SwitchRow _console_keyboard_row {
+        title: _("Open Steam keyboard for text fields");
+        subtitle: _("Needs Steam running in Big Picture or Game Mode");
+      }
+    }
   }
 }

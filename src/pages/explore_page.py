@@ -60,8 +60,21 @@ class HTExplorePage(HTGenericPage):
         ))
 
         self.append(search_entry)
+        self.search_entry = search_entry
 
         HTGenericPage._load_finish(self)
+
+        if getattr(self, "focus_search_when_loaded", False):
+            self.focus_search()
+
+    def focus_search(self) -> None:
+        """Put the cursor in the search box (console mode's Y button)."""
+        search_entry = getattr(self, "search_entry", None)
+        if search_entry is None:
+            # Not loaded yet; focus it as soon as it is
+            self.focus_search_when_loaded = True
+            return
+        search_entry.grab_focus()
 
     def on_search_activated(self, entry) -> None:
         query = entry.get_text()

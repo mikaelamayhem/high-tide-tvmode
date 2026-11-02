@@ -25,7 +25,7 @@ from gi.repository import Gio, GLib, GObject, Gtk
 from tidalapi.playlist import UserPlaylist
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import utils
+from ..lib import scale_widget_sizes, utils
 
 import logging
 
@@ -66,6 +66,7 @@ class HTGenericTrackWidget(Gtk.ListBoxRow, IDisconnectable):
     def __init__(self, track):
         IDisconnectable.__init__(self)
         super().__init__()
+        scale_widget_sizes(self)
 
         self.menu_activated = False
         self.track = track

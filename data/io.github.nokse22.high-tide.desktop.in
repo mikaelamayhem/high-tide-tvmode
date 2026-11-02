@@ -10,3 +10,8 @@ Categories=GNOME;GTK;Music;Audio;AudioVideo;
 StartupNotify=true
 MimeType=x-scheme-handler/tidal;
 Keywords=music;audio;streaming;tidal;player;hi-fi;lossless;
+Actions=console-mode;
+
+[Desktop Action console-mode]
+Name=Console Mode
+Exec=high-tide --console

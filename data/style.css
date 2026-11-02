@@ -144,3 +144,49 @@
 dropdown button:not(:hover) {
   background-color: transparent;
 }
+/* Console mode: controller friendly layout, see src/lib/console_mode.py */
+window.console-mode *:focus-visible {
+  outline: 3px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Make the selected row or card obvious from across the room */
+window.console-mode row:focus-visible,
+window.console-mode flowboxchild:focus-visible,
+window.console-mode .card-bg:focus-visible {
+  background-color: alpha(var(--accent-bg-color), 0.3);
+  outline: 3px solid var(--accent-color);
+  outline-offset: -3px;
+}
+
+window.console-mode .console-volume-osd {
+  padding: 18px 28px;
+  border-radius: 18px;
+  font-size: 1.4em;
+  font-weight: bold;
+}
+
+/* Console mode: see-through panels over the blurred album art */
+window.console-mode {
+  --window-bg-color: transparent;
+  --view-bg-color: transparent;
+  --headerbar-bg-color: transparent;
+  --headerbar-backdrop-color: transparent;
+  --headerbar-shade-color: transparent;
+  --sidebar-bg-color: rgb(0 0 0 / 25%);
+  --sidebar-backdrop-color: rgb(0 0 0 / 25%);
+  --sidebar-shade-color: transparent;
+  --card-bg-color: rgb(255 255 255 / 7%);
+  background: none;
+}
+
+window.console-mode .console-hints {
+  background-color: rgb(0 0 0 / 30%);
+  border-radius: 999px;
+  padding: 6px 24px;
+  margin-bottom: 12px;
+}
+
+.console-qr {
+  border-radius: 12px;
+}

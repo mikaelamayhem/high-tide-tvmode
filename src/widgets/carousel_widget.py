@@ -22,6 +22,7 @@ from typing import Callable
 from gi.repository import GLib, Gtk, Adw
 
 from ..disconnectable_iface import IDisconnectable
+from ..lib import console_mode
 from ..lib import utils
 from ..widgets.card_widget import HTCardWidget
 
@@ -68,6 +69,12 @@ class HTCarouselWidget(Gtk.Box, IDisconnectable):
 
         self.title = _title
         self.title_label.set_label(self.title)
+
+        if console_mode.is_enabled():
+            # The controller scrolls by moving between cards, so keep the
+            # arrow buttons out of the way of the D-pad
+            self.prev_button.set_focusable(False)
+            self.next_button.set_focusable(False)
 
         self.more_function = None
 

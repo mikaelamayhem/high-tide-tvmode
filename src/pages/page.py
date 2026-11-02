@@ -24,7 +24,7 @@ from gi.repository import Adw, GLib, Gtk
 from tidalapi.media import Video
 
 from ..disconnectable_iface import IDisconnectable
-from ..lib import utils
+from ..lib import console_mode, scale_widget_sizes, utils
 from ..widgets import (
     HTAutoLoadWidget,
     HTCardWidget,
@@ -84,6 +84,15 @@ class Page(Adw.NavigationPage, IDisconnectable):
 
         self.set_child(self.object)
 
+        if console_mode.is_enabled():
+            # Use more of a TV's width; the desktop layout caps it at 1000px
+            clamp = self.scrolled_window.get_child()
+            while clamp is not None and not isinstance(clamp, Adw.Clamp):
+                clamp = clamp.get_first_child()
+            if clamp is not None:
+                clamp.set_maximum_size(1800)
+                clamp.set_tightening_threshold(1400)
+
     def load(self):
         """Load the page content asynchronously.
 
@@ -97,6 +106,8 @@ class Page(Adw.NavigationPage, IDisconnectable):
 
         def _loaded():
             self._load_finish()
+            # Enlarge header art etc. in console mode
+            scale_widget_sizes(self)
             self.content_stack.set_visible_child_name("content")
 
         def _load():
