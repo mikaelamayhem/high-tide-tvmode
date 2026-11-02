@@ -32,7 +32,7 @@ activate (GApplication *app)
   GtkWidget *win = adw_application_window_new (GTK_APPLICATION (app));
   GtkWidget *view = adw_toolbar_view_new ();
   GtkWidget *box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 18);
-  GtkWidget *row = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 12);
+  GtkWidget *row = gtk_flow_box_new ();
   GtkWidget *title = gtk_label_new ("High Tide TV probe");
   const char *labels[] = { "Home", "Discover", "Queue", "Lyrics" };
 
@@ -41,17 +41,25 @@ activate (GApplication *app)
   gtk_widget_set_valign (box, GTK_ALIGN_CENTER);
   gtk_widget_set_halign (box, GTK_ALIGN_CENTER);
   gtk_widget_set_halign (row, GTK_ALIGN_CENTER);
+  gtk_flow_box_set_selection_mode (GTK_FLOW_BOX (row), GTK_SELECTION_NONE);
+  gtk_flow_box_set_max_children_per_line (GTK_FLOW_BOX (row), 4);
+  gtk_flow_box_set_column_spacing (GTK_FLOW_BOX (row), 12);
+  gtk_flow_box_set_row_spacing (GTK_FLOW_BOX (row), 12);
 
   for (guint i = 0; i < G_N_ELEMENTS (labels); i++)
     {
       GtkWidget *b = gtk_button_new_with_label (labels[i]);
       gtk_widget_add_css_class (b, "pill");
       g_signal_connect (b, "clicked", G_CALLBACK (on_clicked), NULL);
-      gtk_box_append (GTK_BOX (row), b);
+      gtk_flow_box_append (GTK_FLOW_BOX (row), b);
     }
 
   last_key = GTK_LABEL (gtk_label_new ("Press a button on the remote or controller"));
   gtk_widget_add_css_class (GTK_WIDGET (last_key), "title-3");
+  gtk_label_set_wrap (last_key, TRUE);
+  gtk_label_set_justify (last_key, GTK_JUSTIFY_CENTER);
+  gtk_widget_set_margin_start (box, 12);
+  gtk_widget_set_margin_end (box, 12);
 
   gtk_box_append (GTK_BOX (box), title);
   gtk_box_append (GTK_BOX (box), gtk_label_new (g_strdup_printf (
