@@ -186,3 +186,7 @@ window.console-mode .console-hints {
   padding: 6px 24px;
   margin-bottom: 12px;
 }
+
+.console-qr {
+  border-radius: 12px;
+}

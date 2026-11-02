@@ -558,6 +558,15 @@ class HighTideWindow(Adw.ApplicationWindow):
     def new_login(self):
         """Open a new login dialog for user authentication"""
 
+        if console_mode.is_enabled():
+            # No typing on a TV: sign in by scanning a QR code with a phone
+            from .console_login import ConsoleLoginDialog
+
+            ConsoleLoginDialog(self, self.session, console_mode.get_scale()).present(
+                self
+            )
+            return
+
         login_dialog = LoginDialog(self, self.session)
         login_dialog.present(self)
 
