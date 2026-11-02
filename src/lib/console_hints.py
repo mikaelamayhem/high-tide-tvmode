@@ -18,7 +18,7 @@ HINTS = (
     (("dpad",), _("Move")),
     (("a",), _("Select")),
     (("b",), _("Back")),
-    (("y",), _("Home/Discover")),
+    (("y",), _("Search")),
     (("select",), _("Home")),
     (("lstick",), _("Volume")),
     (("rstick",), _("Scroll")),
@@ -67,7 +67,7 @@ class ConsoleGlyphs:
         self._scale = 1.0
         self._visible = False
 
-    def _new_icon(self, button: str) -> Gtk.Image:
+    def new_icon(self, button: str) -> Gtk.Image:
         image = Gtk.Image(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
         image._ht_console_scaled = True
         self._icons.append((image, button))
@@ -86,7 +86,7 @@ class ConsoleGlyphs:
         parent.remove(widget)
         parent.insert_child_after(column, previous)
         column.append(widget)
-        column.append(self._new_icon(button))
+        column.append(self.new_icon(button))
 
     def add_around(self, widget: Gtk.Widget, left: str, right: str) -> Gtk.Box:
         """Return a box with button icons on both sides of a widget.
@@ -94,9 +94,9 @@ class ConsoleGlyphs:
         The caller puts the returned box where the widget used to be.
         """
         row = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
-        row.append(self._new_icon(left))
+        row.append(self.new_icon(left))
         row.append(widget)
-        row.append(self._new_icon(right))
+        row.append(self.new_icon(right))
         return row
 
     def set_style(self, style: str, scale: float, visible: bool) -> None:

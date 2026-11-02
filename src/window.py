@@ -27,6 +27,7 @@ from tidalapi.media import Quality
 
 from .lib.steam_keyboard import open_steam_keyboard
 from .lib.console_background import ConsoleBackground
+from .lib.console_tabs import CONSOLE_TAB_TAGS, ConsolePanelPage, ConsoleTabBar
 from .lib.console_hints import ConsoleGlyphs, ConsoleHintsBar, VolumeOsd
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
                   SteamKeyboardWatcher, console_mode, gamepad,
@@ -142,12 +143,17 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.console_glyphs.add_below(self.play_button, "x")
         if next_button is not None:
             self.console_glyphs.add_below(next_button, "rt")
-        switcher = self.player_headerbar.get_title_widget()
-        self.player_headerbar.set_title_widget(None)
-        self.player_headerbar.set_title_widget(
-            self.console_glyphs.add_around(switcher, "lb", "rb")
-        )
         self._console_home_enabled = False
+
+        # Console mode: Home, Discover, Queue and Lyrics are tabs on the
+        # right; the left side always shows the album art and controls
+        self.console_tabs = ConsoleTabBar(self.console_glyphs, self.console_go_to_tab)
+        self.console_tabs.set_visible(False)
+        self._install_console_tabs()
+        self.console_queue_page = ConsolePanelPage("queue", _("Queue"))
+        self.console_lyrics_page = ConsolePanelPage("lyrics", _("Lyrics"))
+        self._console_panels_moved = False
+        self._console_tab = "home"
         # The player sidebar is run by its own buttons (X, LB/RB, LT/RT),
         # so the D-pad stays in the main content
         self.console_focus_skip = [self.player_lyrics_queue]
@@ -318,6 +324,8 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.console_glyphs.set_style(style, console_mode.get_scale(), show_buttons)
 
         self.console_background.set_visible(enabled)
+        self.console_tabs.set_visible(enabled)
+        self._move_console_panels(enabled)
 
         # Console home has Liked Songs and playlists, so the tabs aren't needed
         self.navigation_buttons.set_visible(not enabled)
@@ -367,25 +375,16 @@ class HighTideWindow(Adw.ApplicationWindow):
                 self.player_object.play_next()
             case "previous":
                 self.player_object.play_previous()
-            case "discover":
-                self.console_toggle_discover()
+            case "search":
+                self.console_focus_search()
             case "home":
-                self.navigation_view.pop_to_tag("home")
+                self.console_go_to_tab("home")
             case "tab-next":
                 self.console_switch_tab(1)
             case "tab-previous":
                 self.console_switch_tab(-1)
             case "settings":
                 self.console_toggle_settings()
-
-    CONSOLE_TABS = ("player", "lyrics", "queue")
-
-    def console_switch_tab(self, step: int) -> None:
-        """Move between the Player, Lyrics and Queue tabs."""
-        current = self.sidebar_stack.get_visible_child_name()
-        tabs = self.CONSOLE_TABS
-        index = tabs.index(current) if current in tabs else 0
-        self.sidebar_stack.set_visible_child_name(tabs[(index + step) % len(tabs)])
 
     def console_scroll(self, pixels: float) -> None:
         """Scroll the current page, for the right stick."""
@@ -433,14 +432,65 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.home_page = page
         self.navigation_view.replace([page])
 
-    def console_toggle_discover(self) -> None:
-        """Y: switch between the console Home and Discover pages."""
+    def _install_console_tabs(self) -> bool:
+        """Put the console tabs above the main content (right-hand side)."""
+        content_toolbar = self.navigation_buttons.get_ancestor(Adw.ToolbarView)
+        if content_toolbar is None:
+            # The layout isn't built yet; try again once it is
+            GLib.idle_add(self._install_console_tabs)
+            return GLib.SOURCE_REMOVE
+        content_toolbar.add_top_bar(self.console_tabs)
+        return GLib.SOURCE_REMOVE
+
+    def _move_console_panels(self, enabled: bool) -> None:
+        """Move Queue and Lyrics between the sidebar and the console tabs."""
+        if enabled == self._console_panels_moved:
+            return
+        self._console_panels_moved = enabled
+        panels = (
+            (self.lyrics_widget, self.console_lyrics_page, "lyrics",
+             _("Lyrics"), "chat-bubble-text-symbolic"),
+            (self.queue_widget, self.console_queue_page, "queue",
+             _("Queue"), "view-list-ordered-symbolic"),
+        )
+        if enabled:
+            self.sidebar_stack.set_visible_child_name("player")
+            for widget, page, *_rest in panels:
+                self.sidebar_stack.remove(widget)
+                page.set_child(widget)
+        else:
+            for tag in ("queue", "lyrics"):
+                if self.navigation_view.find_page(tag):
+                    self.navigation_view.pop_to_tag("home")
+            for widget, page, name, title, icon in panels:
+                page.set_child(None)
+                self.sidebar_stack.add_titled_with_icon(widget, name, title, icon)
+        # Only the player is left in the sidebar, so hide its tab switcher
+        self.player_headerbar.get_title_widget().set_visible(not enabled)
+
+    def console_go_to_tab(self, tag: str) -> None:
+        """Show one of the console tabs: home, discover, queue or lyrics."""
+        self._console_tab = tag
+        self.console_tabs.set_current(tag)
         visible = self.navigation_view.get_visible_page()
-        if visible is not None and visible.get_tag() == "discover":
-            self.navigation_view.pop_to_tag("home")
+        if visible is not None and visible.get_tag() == tag:
             return
 
         self.navigation_view.pop_to_tag("home")
+        if tag == "discover":
+            self.navigation_view.push(self._new_discover_page())
+        elif tag == "queue":
+            self.navigation_view.push(self.console_queue_page)
+        elif tag == "lyrics":
+            self.navigation_view.push(self.console_lyrics_page)
+
+    def console_switch_tab(self, step: int) -> None:
+        """LB/RB: go to the previous or next console tab."""
+        tags = CONSOLE_TAB_TAGS
+        index = tags.index(self._console_tab) if self._console_tab in tags else 0
+        self.console_go_to_tab(tags[(index + step) % len(tags)])
+
+    def _new_discover_page(self):
         home_page = getattr(self, "home_page", None)
 
         def home_feed():
@@ -451,7 +501,19 @@ class HighTideWindow(Adw.ApplicationWindow):
         page = HTGenericPage.new_from_function(home_feed)
         page.console_view = "discover"
         page.set_tag("discover")
-        self.navigation_view.push(page.load())
+        return page.load()
+
+    def console_focus_search(self) -> None:
+        """Y: jump to the search box and start typing."""
+        visible = self.navigation_view.get_visible_page()
+        if getattr(visible, "search_entry", None) is None:
+            self.console_go_to_tab("home")
+            visible = self.navigation_view.get_visible_page()
+        search_entry = getattr(visible, "search_entry", None)
+        if search_entry is not None:
+            self.set_focus_visible(True)
+            search_entry.grab_focus()
+            open_steam_keyboard()
 
     def console_toggle_settings(self) -> None:
         """Open Preferences, or close it if it's already open."""
@@ -885,7 +947,11 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback("on_visible_page_changed")
     def on_visible_page_changed(self, nav_view, *args):
-        match self.navigation_view.get_visible_page().get_tag():
+        tag = self.navigation_view.get_visible_page().get_tag()
+        if tag in CONSOLE_TAB_TAGS and hasattr(self, "console_tabs"):
+            self._console_tab = tag
+            self.console_tabs.set_current(tag)
+        match tag:
             case "home":
                 self.home_button.set_active(True)
             case "explore":

@@ -65,13 +65,16 @@ handhelds (Steam Deck, SteamOS, CachyOS handheld edition and similar).
 - Turn it on in Preferences, or for one session with `high-tide --console`
   (also available as "Console Mode" in the app launcher's right-click menu).
 - **Interface size** makes text, buttons and album art bigger (100% to 250%).
+- **Layout**: the album art and playback controls stay on the left. The
+  right side has four tabs, Home, Discover, Queue and Lyrics, over a blurred
+  copy of the album art.
 - **Controller**: D-pad moves, left stick changes volume, right stick
-  scrolls, A selects, B goes back, X plays/pauses, Y switches between Home
-  and Discover, LB/RB switch the Player/Lyrics/Queue tabs, LT/RT skip tracks,
-  View goes to Home and Menu opens or closes Preferences. Button hints show
-  with Xbox, PlayStation or Steam Deck icons, many right next to the control
-  they operate. Needs libmanette (`libmanette` package). If your controller
-  only works in Steam, add High Tide to Steam as a non-Steam game.
+  scrolls, A selects, B goes back, X plays/pauses, Y jumps to search,
+  LB/RB cycle the tabs, LT/RT skip tracks, View goes to Home and Menu opens
+  or closes Preferences. Button hints show with Xbox, PlayStation or Steam
+  Deck icons, many right next to the control they operate. Needs libmanette
+  (`libmanette` package). If your controller only works in Steam, add High
+  Tide to Steam as a non-Steam game.
 - **Home** has a search box, your playlists, Liked Songs and your recent
   items. **Discover** has the search box and the rest of the Tidal feed.
   A popup shows the volume as you change it.

@@ -60,7 +60,7 @@ BUTTON_ACTIONS = {
     BTN_SOUTH: "select",
     BTN_EAST: "back",
     BTN_WEST: "play-pause",
-    BTN_NORTH: "discover",
+    BTN_NORTH: "search",
     BTN_TL: "tab-previous",
     BTN_TR: "tab-next",
     BTN_TL2: "previous",
