@@ -4,13 +4,16 @@
 set -x
 OUT=android-poc/out
 mkdir -p "$OUT"
-APK=$(ls .pixiewood/android/app/build/outputs/apk/debug/*x86_64*.apk 2>/dev/null | head -1)
-[ -n "$APK" ] || APK=$(ls .pixiewood/android/app/build/outputs/apk/debug/*.apk | head -1)
-adb install -r "$APK"
+find android-poc/.pixiewood -name '*.apk' -exec ls -la {} +
+APK=$(find android-poc/.pixiewood -name '*x86_64*.apk' | head -1)
+[ -n "$APK" ] || APK=$(find android-poc/.pixiewood -name '*universal*.apk' | head -1)
+[ -n "$APK" ] || APK=$(find android-poc/.pixiewood -name '*.apk' | head -1)
+adb install -r "$APK" || exit 1
 PKG=io.github.mikaelamayhem.hightidetvprobe
 adb shell pm list packages | grep -i hightide
 adb logcat -c
-adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 || adb shell monkey -p "$(adb shell pm list packages | grep -i hightide | head -1 | cut -d: -f2 | tr -d '\r')" 1
+PKG=$(adb shell pm list packages | grep -i hightide | head -1 | cut -d: -f2 | tr -d '\r')
+adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1
 sleep 20
 adb exec-out screencap -p > "$OUT/1-after-launch.png"
 adb shell input keyevent KEYCODE_DPAD_DOWN
