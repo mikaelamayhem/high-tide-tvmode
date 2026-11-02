@@ -20,6 +20,8 @@ from gi.repository import Gio, GLib  # noqa: E402
 data_home = GLib.get_user_data_dir()
 os.environ.setdefault("HOME", os.path.dirname(data_home))
 os.environ["XDG_CACHE_HOME"] = os.path.join(os.path.dirname(data_home), "cache", "high-tide")
+os.makedirs(os.environ["XDG_CACHE_HOME"], exist_ok=True)
+os.makedirs(data_home, exist_ok=True)
 
 try:
     locale.setlocale(locale.LC_ALL, "")
