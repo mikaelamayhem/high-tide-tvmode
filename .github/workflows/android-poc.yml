@@ -60,7 +60,11 @@ jobs:
       - name: Build typelibs from the host's GIR files
         run: |
           set -eux
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev gir1.2-glib-2.0-dev gir1.2-freedesktop-dev
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev gir1.2-glib-2.0-dev gir1.2-freedesktop-dev libgirepository-2.0-dev
+          (sudo apt-get install -y gi-compile-repository || true)
+          COMPILER=$(command -v gi-compile-repository || ls /usr/lib/*/glib-2.0/gi-compile-repository 2>/dev/null | head -1 || true)
+          [ -n "$COMPILER" ] || COMPILER=g-ir-compiler
+          echo "Using $COMPILER"
           # Android libraries have no version suffix: libgtk-4.so.1 -> libgtk-4.so
           mkdir -p /tmp/gir
           for f in /usr/share/gir-1.0/*.gir; do
@@ -69,9 +73,10 @@ jobs:
           grep -ho 'shared-library="[^"]*"' /tmp/gir/*.gir | sort -u
           for f in /tmp/gir/*.gir; do
             n=$(basename "$f" .gir)
-            g-ir-compiler --includedir=/tmp/gir "$f" -o "typelibs/$n.typelib" || echo "skipped $n"
+            "$COMPILER" --includedir=/tmp/gir "$f" -o "typelibs/$n.typelib" || echo "::warning::skipped $n"
           done
           ls typelibs
+          for n in GLib-2.0 GObject-2.0 Gio-2.0 Gtk-4.0 Adw-1; do test -f typelibs/$n.typelib || { echo "::error::missing $n typelib"; exit 1; }; done
       - name: Add our GTK patches to pixiewood
         run: cp patches/*.patch "$GITHUB_WORKSPACE/pixiewood/prepare/wraps/gtk/"
       - name: Prepare
