@@ -107,7 +107,12 @@ jobs:
       - name: Prepare
         run: pixiewood -v prepare --android-studio-dir="$GITHUB_WORKSPACE/mini" --sdk="$ANDROID_HOME" pixiewood.xml
       - name: Generate
-        run: pixiewood -v generate
+        run: |
+          pixiewood -v generate
+          # By default Android drops asset folders whose names start with "_"
+          # (like Python's zipfile/_path), so keep everything except VCS junk.
+          sed -i '0,/^android {/s//android {\n    androidResources { ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~" }/' .pixiewood/android/app/build.gradle
+          grep -n "ignoreAssetsPattern" .pixiewood/android/app/build.gradle
       - name: Build
         run: pixiewood -v build
       - name: Show what went into the APK
