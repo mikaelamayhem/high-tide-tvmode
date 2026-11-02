@@ -1,0 +1,8 @@
+# Fetched by CI (see .github/workflows/android-poc.yml)
+/python/
+/pygobject/
+/pythoncapi-compat/
+/typelibs/*.typelib
+/.pixiewood/
+/subprojects/
+/out/

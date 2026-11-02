@@ -14,7 +14,7 @@ adb shell pm list packages | grep -i hightide
 adb logcat -c
 PKG=$(adb shell pm list packages | grep -i hightide | head -1 | cut -d: -f2 | tr -d '\r')
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1
-sleep 20
+sleep 45
 adb exec-out screencap -p > "$OUT/1-after-launch.png"
 # Known GTK Android issue: the first frame may wait for input. Tap once.
 adb shell input tap 5 5
@@ -28,5 +28,5 @@ for key in DPAD_DOWN DPAD_RIGHT DPAD_RIGHT DPAD_CENTER BUTTON_A BUTTON_B BUTTON_
   n=$((n+1))
 done
 adb logcat -d > "$OUT/logcat.txt"
-grep -i "HTPROBE\|Gdk\|Gtk\|FATAL" "$OUT/logcat.txt" | tail -100
+grep -i "HTPROBE\|python\|Gdk\|Gtk\|FATAL\|DEBUG" "$OUT/logcat.txt" | tail -200
 exit 0

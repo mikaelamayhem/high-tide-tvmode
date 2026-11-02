@@ -1,90 +1,88 @@
-/* High Tide Android TV probe: does a libadwaita window show up on Android,
- * and do remote / controller presses reach GTK? Every key press is shown
- * in the window and logged with the prefix "HTPROBE". */
+/* High Tide Android TV probe, stage 2.
+ *
+ * Starts the bundled CPython and runs probe.py, which builds the window
+ * with PyGObject. If Python fails to start, a plain C window shows the
+ * error instead. Log lines carry the prefix "HTPROBE". */
 
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
 #include <adwaita.h>
 
-static GtkLabel *last_key;
+static char *python_error;
 
-static gboolean
-on_key (GtkEventControllerKey *ctl, guint keyval, guint keycode,
-        GdkModifierType state, gpointer data)
+static const char *
+data_dir (void)
 {
-  const char *name = gdk_keyval_name (keyval);
-  g_autofree char *text = g_strdup_printf ("Last key: %s (keyval 0x%x, code %u)",
-                                           name ? name : "?", keyval, keycode);
-  gtk_label_set_text (last_key, text);
-  g_message ("HTPROBE key %s", text);
-  return GDK_EVENT_PROPAGATE;
+  /* The GTK Android runtime extracts the APK assets to files/share and
+   * makes it the first system data dir. */
+  return g_get_system_data_dirs ()[0];
 }
 
-static void
-on_clicked (GtkButton *button, gpointer data)
+static int
+run_python (int argc, char **argv)
 {
-  g_message ("HTPROBE clicked %s", gtk_button_get_label (button));
-  gtk_label_set_text (last_key, g_strdup_printf ("Activated: %s",
-                                                 gtk_button_get_label (button)));
-}
+  g_autofree char *home = g_build_filename (data_dir (), "python", PROBE_CPU, NULL);
+  g_autofree char *typelibs = g_build_filename (data_dir (), "girepository-1.0", NULL);
+  g_autofree char *script = g_build_filename (data_dir (), "hightide-probe", "probe.py", NULL);
+  PyConfig config;
+  PyStatus status;
+  FILE *fp;
+  int rc;
 
-static void
-activate (GApplication *app)
-{
-  GtkWidget *win = adw_application_window_new (GTK_APPLICATION (app));
-  GtkWidget *view = adw_toolbar_view_new ();
-  GtkWidget *box = gtk_box_new (GTK_ORIENTATION_VERTICAL, 18);
-  GtkWidget *row = gtk_flow_box_new ();
-  GtkWidget *title = gtk_label_new ("High Tide TV probe");
-  const char *labels[] = { "Home", "Discover", "Queue", "Lyrics" };
+  g_setenv ("GI_TYPELIB_PATH", typelibs, TRUE);
+  g_message ("HTPROBE python home %s, typelibs %s", home, typelibs);
 
-  adw_toolbar_view_add_top_bar (ADW_TOOLBAR_VIEW (view), adw_header_bar_new ());
-  gtk_widget_add_css_class (title, "title-1");
-  gtk_widget_set_valign (box, GTK_ALIGN_CENTER);
-  gtk_widget_set_halign (box, GTK_ALIGN_CENTER);
-  gtk_widget_set_halign (row, GTK_ALIGN_CENTER);
-  gtk_flow_box_set_selection_mode (GTK_FLOW_BOX (row), GTK_SELECTION_NONE);
-  gtk_flow_box_set_max_children_per_line (GTK_FLOW_BOX (row), 4);
-  gtk_flow_box_set_column_spacing (GTK_FLOW_BOX (row), 12);
-  gtk_flow_box_set_row_spacing (GTK_FLOW_BOX (row), 12);
-
-  for (guint i = 0; i < G_N_ELEMENTS (labels); i++)
+  PyConfig_InitIsolatedConfig (&config);
+  config.install_signal_handlers = 0;
+  status = PyConfig_SetBytesString (&config, &config.home, home);
+  if (!PyStatus_Exception (status))
+    status = PyConfig_SetBytesArgv (&config, argc, argv);
+  if (!PyStatus_Exception (status))
+    status = Py_InitializeFromConfig (&config);
+  PyConfig_Clear (&config);
+  if (PyStatus_Exception (status))
     {
-      GtkWidget *b = gtk_button_new_with_label (labels[i]);
-      gtk_widget_add_css_class (b, "pill");
-      g_signal_connect (b, "clicked", G_CALLBACK (on_clicked), NULL);
-      gtk_flow_box_append (GTK_FLOW_BOX (row), b);
+      python_error = g_strdup_printf ("Python failed to start: %s",
+                                      status.err_msg ? status.err_msg : "unknown error");
+      g_warning ("HTPROBE %s", python_error);
+      return -1;
     }
 
-  last_key = GTK_LABEL (gtk_label_new ("Press a button on the remote or controller"));
-  gtk_widget_add_css_class (GTK_WIDGET (last_key), "title-3");
-  gtk_label_set_wrap (last_key, TRUE);
-  gtk_label_set_justify (last_key, GTK_JUSTIFY_CENTER);
-  gtk_widget_set_margin_start (box, 12);
-  gtk_widget_set_margin_end (box, 12);
+  g_message ("HTPROBE python started: %s", Py_GetVersion ());
 
-  gtk_box_append (GTK_BOX (box), title);
-  gtk_box_append (GTK_BOX (box), gtk_label_new (g_strdup_printf (
-      "GTK %u.%u.%u, libadwaita %u.%u.%u",
-      gtk_get_major_version (), gtk_get_minor_version (), gtk_get_micro_version (),
-      adw_get_major_version (), adw_get_minor_version (), adw_get_micro_version ())));
-  gtk_box_append (GTK_BOX (box), row);
-  gtk_box_append (GTK_BOX (box), GTK_WIDGET (last_key));
-  adw_toolbar_view_set_content (ADW_TOOLBAR_VIEW (view), box);
-  adw_application_window_set_content (ADW_APPLICATION_WINDOW (win), view);
+  fp = fopen (script, "r");
+  if (!fp)
+    {
+      python_error = g_strdup_printf ("Could not open %s", script);
+      g_warning ("HTPROBE %s", python_error);
+      return -1;
+    }
+  rc = PyRun_SimpleFileEx (fp, script, 1);
+  if (rc != 0)
+    python_error = g_strdup ("probe.py raised an exception, see logcat (tag python.stderr)");
+  return rc;
+}
 
-  GtkEventController *keys = gtk_event_controller_key_new ();
-  gtk_event_controller_set_propagation_phase (keys, GTK_PHASE_CAPTURE);
-  g_signal_connect (keys, "key-pressed", G_CALLBACK (on_key), NULL);
-  gtk_widget_add_controller (win, keys);
+static void
+activate_fallback (GApplication *app)
+{
+  GtkWidget *win = adw_application_window_new (GTK_APPLICATION (app));
+  GtkWidget *page = adw_status_page_new ();
 
+  adw_status_page_set_title (ADW_STATUS_PAGE (page), "Python did not start");
+  adw_status_page_set_description (ADW_STATUS_PAGE (page), python_error);
+  adw_application_window_set_content (ADW_APPLICATION_WINDOW (win), page);
   gtk_window_present (GTK_WINDOW (win));
-  g_message ("HTPROBE window presented");
 }
 
 int
 main (int argc, char **argv)
 {
+  if (run_python (argc, argv) == 0 && !python_error)
+    return 0;
+
   g_autoptr (AdwApplication) app =
     adw_application_new ("io.github.mikaelamayhem.HighTideTvProbe", G_APPLICATION_DEFAULT_FLAGS);
-  g_signal_connect (app, "activate", G_CALLBACK (activate), NULL);
+  g_signal_connect (app, "activate", G_CALLBACK (activate_fallback), NULL);
   return g_application_run (G_APPLICATION (app), argc, argv);
 }

@@ -42,6 +42,36 @@ jobs:
           python -m pip install meson ninja
           echo "$GITHUB_WORKSPACE/pixiewood" >> "$GITHUB_PATH"
           ls "$ANDROID_HOME" "$ANDROID_HOME/ndk" || true
+      - name: Fetch Python for Android and PyGObject
+        env:
+          PY_VERSION: 3.14.10
+          PYGOBJECT_VERSION: 3.58.1
+        run: |
+          set -eux
+          for cpu in x86_64 aarch64; do
+            mkdir -p python/$cpu
+            curl -fsSL "https://www.python.org/ftp/python/$PY_VERSION/python-$PY_VERSION-$cpu-linux-android.tar.gz" | tar -xz -C python/$cpu
+          done
+          ls python/x86_64 python/x86_64/prefix python/x86_64/prefix/lib | head -50
+          git clone -q --depth 1 -b "$PYGOBJECT_VERSION" https://github.com/GNOME/pygobject pygobject
+          rev=$(sed -n 's/^revision *= *//p' pygobject/subprojects/pythoncapi-compat.wrap)
+          mkdir -p pythoncapi-compat
+          curl -fsSL "https://raw.githubusercontent.com/python/pythoncapi-compat/$rev/pythoncapi_compat.h" -o pythoncapi-compat/pythoncapi_compat.h
+      - name: Build typelibs from the host's GIR files
+        run: |
+          set -eux
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev gir1.2-glib-2.0-dev gir1.2-freedesktop-dev
+          # Android libraries have no version suffix: libgtk-4.so.1 -> libgtk-4.so
+          mkdir -p /tmp/gir
+          for f in /usr/share/gir-1.0/*.gir; do
+            sed -E 's/(lib[A-Za-z0-9_.+-]*\.so)(\.[0-9]+)+/\1/g' "$f" > /tmp/gir/$(basename "$f")
+          done
+          grep -ho 'shared-library="[^"]*"' /tmp/gir/*.gir | sort -u
+          for f in /tmp/gir/*.gir; do
+            n=$(basename "$f" .gir)
+            g-ir-compiler --includedir=/tmp/gir "$f" -o "typelibs/$n.typelib" || echo "skipped $n"
+          done
+          ls typelibs
       - name: Add our GTK patches to pixiewood
         run: cp patches/*.patch "$GITHUB_WORKSPACE/pixiewood/prepare/wraps/gtk/"
       - name: Prepare
@@ -50,6 +80,11 @@ jobs:
         run: pixiewood -v generate
       - name: Build
         run: pixiewood -v build
+      - name: Show what went into the APK
+        run: |
+          find .pixiewood/root/lib -name '*.so' | sort | head -100
+          find .pixiewood/root -name '_gi*.so' -exec sh -c 'llvm-readelf -d "$1" 2>/dev/null || readelf -d "$1"' _ {} \; | grep NEEDED || true
+          du -sh .pixiewood/android/app/build/outputs/apk/debug/* || true
       - name: Logs on failure
         if: failure()
         run: |
