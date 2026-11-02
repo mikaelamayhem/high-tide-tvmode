@@ -1,0 +1,41 @@
+diff --git a/gdk/android/gdkandroidkeysyms-private.h b/gdk/android/gdkandroidkeysyms-private.h
+index 20f1b7c..1e20732 100644
+--- a/gdk/android/gdkandroidkeysyms-private.h
++++ b/gdk/android/gdkandroidkeysyms-private.h
+@@ -62,8 +62,34 @@ gdk_android_keysyms_translate_keycode (gint32 keycode)
+       return GDK_KEY_Left;
+     case AKEYCODE_DPAD_RIGHT:
+       return GDK_KEY_Right;
+-      /*case AKEYCODE_DPAD_CENTER:
+-          return GDK_KEY_VoidSymbol;*/
++    /* TV remotes and game controllers. The Android keycode is still
++     * available as the hardware keycode, so apps can tell them apart. */
++    case AKEYCODE_DPAD_CENTER:
++    case AKEYCODE_BUTTON_A:
++      return GDK_KEY_Return;
++    case AKEYCODE_BUTTON_B:
++      return GDK_KEY_Escape;
++    case AKEYCODE_BUTTON_X:
++      return GDK_KEY_space;
++    case AKEYCODE_BUTTON_Y:
++      return GDK_KEY_Menu;
++    case AKEYCODE_BUTTON_L1:
++      return GDK_KEY_Page_Up;
++    case AKEYCODE_BUTTON_R1:
++      return GDK_KEY_Page_Down;
++    case AKEYCODE_BUTTON_L2:
++      return GDK_KEY_Home;
++    case AKEYCODE_BUTTON_R2:
++      return GDK_KEY_End;
++    case AKEYCODE_BUTTON_START:
++      return GDK_KEY_Menu;
++    case AKEYCODE_BUTTON_SELECT:
++      return GDK_KEY_Select;
++    case AKEYCODE_BUTTON_THUMBL:
++    case AKEYCODE_BUTTON_THUMBR:
++      return GDK_KEY_Find;
++    case AKEYCODE_BUTTON_MODE:
++      return GDK_KEY_HomePage;
+     case AKEYCODE_VOLUME_UP:
+       return GDK_KEY_AudioRaiseVolume;
+     case AKEYCODE_VOLUME_DOWN:

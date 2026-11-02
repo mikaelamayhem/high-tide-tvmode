@@ -16,7 +16,10 @@
       <patch>pthread-restrictions</patch>
     </glib>
     <fontconfig/>
-    <gtk/>
+    <gtk>
+      <!-- Our own patch: D-pad center and gamepad buttons (see patches/) -->
+      <patch>gamepad-keys</patch>
+    </gtk>
     <libadwaita/>
   </dependencies>
   <build target="hightide-tv-probe">

@@ -42,6 +42,8 @@ jobs:
           python -m pip install meson ninja
           echo "$GITHUB_WORKSPACE/pixiewood" >> "$GITHUB_PATH"
           ls "$ANDROID_HOME" "$ANDROID_HOME/ndk" || true
+      - name: Add our GTK patches to pixiewood
+        run: cp patches/*.patch "$GITHUB_WORKSPACE/pixiewood/prepare/wraps/gtk/"
       - name: Prepare
         run: pixiewood -v prepare --android-studio-dir="$GITHUB_WORKSPACE/mini" --sdk="$ANDROID_HOME" pixiewood.xml
       - name: Generate
@@ -65,6 +67,8 @@ jobs:
 
   emulator:
     needs: build
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -84,6 +88,7 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
+          profile: tv_1080p
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: sh android-poc/emulator-test.sh
@@ -92,3 +97,14 @@ jobs:
         with:
           name: emulator-screenshots
           path: android-poc/out/
+      - name: Publish screenshots to the android-probe-results branch
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/results && cp -r android-poc/out/. /tmp/results/
+          git checkout --orphan android-probe-results
+          git rm -rfq . && git clean -fdxq
+          cp -r /tmp/results/. .
+          git add -A && git commit -qm "Probe results for ${GITHUB_SHA}"
+          git push -f origin android-probe-results
