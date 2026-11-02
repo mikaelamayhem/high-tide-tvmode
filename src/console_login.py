@@ -13,6 +13,7 @@ import tidalapi
 from gi.repository import Adw, Gdk, GLib, Gtk
 
 from .lib.phone_login import PhoneLoginServer
+from .lib.platform_info import IS_ANDROID
 from .login import LoginDialog
 
 try:
@@ -105,6 +106,15 @@ class ConsoleLoginDialog(Adw.Dialog):
             )
             box.append(sorry)
 
+        if IS_ANDROID and phone_url:
+            # On a phone the sign-in page can open right here, in the browser
+            here = Gtk.Button(label=_("Open sign-in in the browser"))
+            here.add_css_class("pill")
+            here.add_css_class("suggested-action")
+            here.set_halign(Gtk.Align.CENTER)
+            here.connect("clicked", lambda *_: self._open_in_browser(phone_url))
+            box.append(here)
+
         self.status = Gtk.Label(wrap=True, justify=2, visible=False)
         box.append(self.status)
 
@@ -120,6 +130,18 @@ class ConsoleLoginDialog(Adw.Dialog):
         self.set_child(toolbar)
 
         self.connect("closed", lambda *_: self.server.stop())
+
+    def _open_in_browser(self, url: str) -> None:
+        launcher = Gtk.UriLauncher.new(url)
+
+        def done(source, result):
+            try:
+                launcher.launch_finish(result)
+            except GLib.Error:
+                logger.exception("Could not open the browser")
+                self._show_status(_("Couldn't open the browser. Type the address above into it."), True)
+
+        launcher.launch(self.get_root(), None, done)
 
     def _finish_login(self, redirect_url: str) -> str | None:
         """Runs on the phone page's thread. None means success."""

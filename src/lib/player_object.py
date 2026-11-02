@@ -765,6 +765,8 @@ class PlayerObject(GObject.GObject):
         Returns:
             float: Current volume level (0.0 to 1.0), adjusted for quadratic scaling if enabled
         """
+        if self.playbin is None:
+            return 1.0
         volume = self.playbin.get_property("volume")
         if self.quadratic_volume:
             return round(volume ** (1 / 2), 1)
@@ -777,10 +779,11 @@ class PlayerObject(GObject.GObject):
         Args:
             value (float): Volume level (0.0 to 1.0), will be squared if quadratic volume is enabled
         """
-        if self.quadratic_volume:
-            self.playbin.set_property("volume", value**2)
-        else:
-            self.playbin.set_property("volume", value)
+        if self.playbin is not None:
+            if self.quadratic_volume:
+                self.playbin.set_property("volume", value**2)
+            else:
+                self.playbin.set_property("volume", value)
         self.emit("volume-changed", value)
 
     def _update_slider_callback(self):
