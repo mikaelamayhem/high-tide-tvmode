@@ -46,7 +46,7 @@ def check_network(label):
 
 
 def on_activate(app):
-    win = Adw.ApplicationWindow(application=app)
+    win = Adw.ApplicationWindow(application=app, title="High Tide TV probe")
     view = Adw.ToolbarView()
     view.add_top_bar(Adw.HeaderBar())
 

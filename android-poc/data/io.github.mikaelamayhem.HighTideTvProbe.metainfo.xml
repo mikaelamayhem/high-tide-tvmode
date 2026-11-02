@@ -7,5 +7,6 @@
   <project_license>GPL-3.0-or-later</project_license>
   <description><p>A small test window for the High Tide Android TV experiment.</p></description>
   <launchable type="desktop-id">io.github.mikaelamayhem.HighTideTvProbe.desktop</launchable>
+  <requires><internet>always</internet></requires>
   <releases><release version="0.1.0" date="2026-11-02"/></releases>
 </component>
