@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application" xmlns="https://specifications.freedesktop.org/metainfo/1.0">
+  <id>io.github.mikaelamayhem.HighTideTvProbe</id>
+  <name>High Tide TV Probe</name>
+  <summary>Checks whether GTK4 and libadwaita run on Android TV</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description><p>A small test window for the High Tide Android TV experiment.</p></description>
+  <launchable type="desktop-id">io.github.mikaelamayhem.HighTideTvProbe.desktop</launchable>
+  <releases><release version="0.1.0" date="2026-11-02"/></releases>
+</component>
