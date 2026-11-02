@@ -63,10 +63,13 @@ def _search_root(window: Gtk.Window, focus: Gtk.Widget | None) -> Gtk.Widget:
     return dialog if dialog is not None else window
 
 
-def _candidates(root: Gtk.Widget, skip: tuple = ()) -> list[Gtk.Widget]:
+def _candidates(
+    root: Gtk.Widget, skip: tuple = (), targets_only: bool | None = None
+) -> list[Gtk.Widget]:
     # In the main window only the chosen kinds of widget count; in a
     # dialog or popover anything focusable does
-    targets_only = isinstance(root, Gtk.Window)
+    if targets_only is None:
+        targets_only = isinstance(root, Gtk.Window)
     found = []
     stack = [root]
     while stack:
@@ -149,11 +152,19 @@ def _is_inside(widget: Gtk.Widget, areas: tuple) -> bool:
     return any(widget is area or widget.is_ancestor(area) for area in areas)
 
 
-def _first_candidate(root: Gtk.Widget, skip: tuple) -> bool:
+def focus_first(window: Gtk.Window, within: Gtk.Widget) -> bool:
+    """Select the top-left song, card or button inside part of the window."""
+    window.set_focus_visible(True)
+    return _first_candidate(within, (), targets_only=True)
+
+
+def _first_candidate(
+    root: Gtk.Widget, skip: tuple, targets_only: bool | None = None
+) -> bool:
     """Focus the top-left widget, for when there's no current selection."""
     best = None
     best_key = None
-    for candidate in _candidates(root, skip):
+    for candidate in _candidates(root, skip, targets_only):
         rect = _bounds(candidate, root)
         if rect is None:
             continue

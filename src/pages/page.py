@@ -92,6 +92,13 @@ class Page(Adw.NavigationPage, IDisconnectable):
             if clamp is not None:
                 clamp.set_maximum_size(1800)
                 clamp.set_tightening_threshold(1400)
+            # B goes back and Start opens the menu, so the header only
+            # shows the page title, the same on every page
+            for obj in self.builder.get_objects():
+                if isinstance(obj, Adw.HeaderBar):
+                    obj.set_show_back_button(False)
+                elif isinstance(obj, Gtk.MenuButton):
+                    obj.set_visible(False)
 
     def load(self):
         """Load the page content asynchronously.
@@ -109,6 +116,8 @@ class Page(Adw.NavigationPage, IDisconnectable):
             # Enlarge header art etc. in console mode
             scale_widget_sizes(self)
             self.content_stack.set_visible_child_name("content")
+            if console_mode.is_enabled():
+                GLib.idle_add(self._console_select_first)
 
         def _load():
             try:
@@ -122,6 +131,21 @@ class Page(Adw.NavigationPage, IDisconnectable):
         threading.Thread(target=_load).start()
 
         return self
+
+    def _console_select_first(self) -> bool:
+        """If this page opened before it finished loading, select its
+        first item now that there is one."""
+        from ..lib import spatial_focus
+
+        window = self.get_root()
+        if not isinstance(window, Gtk.Window) or not self.get_mapped():
+            return GLib.SOURCE_REMOVE
+        focus = window.get_focus()
+        if focus is not None and spatial_focus.is_target(focus):
+            return GLib.SOURCE_REMOVE  # something is already selected
+        if getattr(window, "get_visible_dialog", lambda: None)() is None:
+            spatial_focus.focus_first(window, self)
+        return GLib.SOURCE_REMOVE
 
     def _load_async(self) -> None:
         """Fetch all data for the page in a background thread.
@@ -368,6 +392,9 @@ class Page(Adw.NavigationPage, IDisconnectable):
             width_request=200,
             vexpand=True,
         )
+        # The controller can select page links, like albums
+        button._ht_console_target = True
+        button.add_css_class("console-target")
         self.signals.append(
             (
                 button,

@@ -28,6 +28,7 @@ from tidalapi.media import Quality
 from .lib.steam_keyboard import open_steam_keyboard
 from .lib.console_background import ConsoleBackground
 from .lib.console_slide import ConsoleTabSlide
+from .lib.console_fixed_layout import FixedLayoutBin
 from .lib.console_tabs import CONSOLE_TAB_TAGS, ConsolePanelPage, ConsoleTabBar
 from .lib.console_hints import ConsoleGlyphs, ConsoleHintsBar, VolumeOsd
 from .lib import spatial_focus
@@ -133,7 +134,10 @@ class HighTideWindow(Adw.ApplicationWindow):
         # Draws the sideways slide when LB/RB change tabs
         self.console_tab_slide = ConsoleTabSlide()
         console_overlay.add_overlay(self.console_tab_slide)
-        self.set_content(console_overlay)
+        # Console mode: lay everything out at one fixed size and scale it
+        # to the window, so it looks the same at any resolution
+        self.console_fixed_layout = FixedLayoutBin(console_overlay)
+        self.set_content(self.console_fixed_layout)
         self.playing_track_picture.connect(
             "notify::paintable",
             lambda picture, *_: self.console_background.set_paintable(
@@ -159,6 +163,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.console_lyrics_page = ConsolePanelPage("lyrics", _("Lyrics"))
         self._console_panels_moved = False
         self._console_tab = "home"
+        self._install_console_navigation()
         # In the player sidebar the D-pad only reaches the row of song
         # buttons (see _arrange_console_player)
         self.console_focus_skip = []
@@ -211,8 +216,6 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.settings.connect(
             "changed::console-scale-auto", self.update_console_mode
         )
-        # Matching the screen needs to know which screen the window is on
-        self.connect("realize", self._on_console_realize)
         self.update_console_mode()
         # Enlarge the player bar cover art once at startup
         scale_widget_sizes(self)
@@ -342,14 +345,13 @@ class HighTideWindow(Adw.ApplicationWindow):
     def update_console_mode(self, *args):
         """Apply console mode from the setting or the --console flag."""
         enabled = is_console_mode(self.settings, self.get_application())
-        old_scale = console_mode.get_scale()
         apply_console_mode(
             self,
             enabled,
             self.settings.get_int("console-scale"),
             self.settings.get_boolean("console-scale-auto"),
         )
-        self._console_scale_changed = console_mode.get_scale() != old_scale
+        self.console_fixed_layout.set_enabled(console_mode.is_fixed_layout())
         self.steam_keyboard.set_enabled(
             enabled and self.settings.get_boolean("console-steam-keyboard")
         )
@@ -375,20 +377,6 @@ class HighTideWindow(Adw.ApplicationWindow):
             self._console_home_enabled = enabled
             if getattr(self, "is_logged_in", False):
                 self.show_home_page()
-
-    def _on_console_realize(self, *args) -> None:
-        surface = self.get_surface()
-        if surface is not None:
-            surface.connect("enter-monitor", self._on_console_monitor)
-        self._on_console_monitor()
-
-    def _on_console_monitor(self, *args) -> None:
-        if not console_mode.is_enabled():
-            return
-        self.update_console_mode()
-        if self._console_scale_changed and getattr(self, "is_logged_in", False):
-            # Rebuild the home page at the new size
-            self.show_home_page()
 
     def _arrange_console_player(self, enabled: bool) -> None:
         """Console mode: shuffle and repeat join the song buttons row.
@@ -534,7 +522,12 @@ class HighTideWindow(Adw.ApplicationWindow):
         page.load()
         page.set_tag("home")
         self.home_page = page
-        self.navigation_view.replace([page])
+        # Discover is built from Home's feed, so make it again next time
+        old_discover = getattr(self, "_discover_page", None)
+        self._discover_page = None
+        self._nav_replace([page])
+        if old_discover is not None and old_discover.get_parent() is None:
+            old_discover.disconnect_all()
 
     def _install_console_tabs(self) -> bool:
         """Put the console tabs above the main content (right-hand side)."""
@@ -589,24 +582,102 @@ class HighTideWindow(Adw.ApplicationWindow):
             return
 
         def switch():
-            self.navigation_view.set_animate_transitions(False)
-            try:
-                self.navigation_view.pop_to_tag("home")
-                if tag == "discover":
-                    self.navigation_view.push(self._new_discover_page())
-                elif tag == "queue":
-                    self.navigation_view.push(self.console_queue_page)
-                elif tag == "lyrics":
-                    self.navigation_view.push(self.console_lyrics_page)
-            finally:
-                self.navigation_view.set_animate_transitions(True)
+            self._nav_without_animation(self._nav_pop_to_tag, "home")
+            if tag == "discover":
+                self._nav_without_animation(self._nav_push, self._new_discover_page())
+            elif tag == "queue":
+                self._nav_without_animation(self._nav_push, self.console_queue_page)
+            elif tag == "lyrics":
+                self._nav_without_animation(self._nav_push, self.console_lyrics_page)
+
+        self._console_slide(switch, direction)
+
+    def _install_console_navigation(self) -> None:
+        """Route page changes through one sideways slide in console mode.
+
+        Everything (tabs, opening an album, going back) then moves the same
+        way. Pages are opened once their content has loaded, so the slide
+        shows the real page instead of a spinner.
+        """
+        nav = self.navigation_view
+        self._nav_push = nav.push
+        self._nav_pop = nav.pop
+        self._nav_pop_to_tag = nav.pop_to_tag
+        self._nav_replace = nav.replace
+
+        def push(page):
+            if not console_mode.is_enabled():
+                return self._nav_push(page)
+            self._console_push(page)
+
+        def pop():
+            if not console_mode.is_enabled():
+                return self._nav_pop()
+            if len(nav.get_navigation_stack()) <= 1:
+                return False
+            self._console_slide(
+                lambda: self._nav_without_animation(self._nav_pop), -1
+            )
+            return True
+
+        # Pages call utils.navigation_view.push(), which is this same object
+        nav.push = push
+        nav.pop = pop
+
+    def _nav_without_animation(self, function, *args):
+        self.navigation_view.set_animate_transitions(False)
+        try:
+            return function(*args)
+        finally:
+            self.navigation_view.set_animate_transitions(True)
+
+    # Longest wait for a page's content before opening it anyway
+    CONSOLE_PAGE_WAIT_MS = 1500
+
+    def _console_push(self, page) -> None:
+        def open_page(*_args):
+            if getattr(page, "_ht_console_opened", False):
+                return GLib.SOURCE_REMOVE
+            page._ht_console_opened = True
+            scale_widget_sizes(page)
+            self._console_slide(
+                lambda: self._nav_without_animation(self._nav_push, page), 1
+            )
+            return GLib.SOURCE_REMOVE
+
+        page._ht_console_opened = False
+        stack = getattr(page, "content_stack", None)
+        if stack is None or stack.get_visible_child_name() != "loading":
+            open_page()
+            return
+        handler = stack.connect("notify::visible-child-name", open_page)
+        GLib.timeout_add(self.CONSOLE_PAGE_WAIT_MS, open_page)
+        # Don't keep the handler around after the page is open
+        GLib.timeout_add(
+            self.CONSOLE_PAGE_WAIT_MS + 100,
+            lambda: stack.disconnect(handler) and False,
+        )
+
+    def _console_slide(self, switch, direction: int) -> None:
+        """Change page with the sideways slide, then select the first item."""
+
+        def switch_and_focus():
+            switch()
+            GLib.idle_add(self._console_focus_page)
 
         self.console_tab_slide.switch(
             self.navigation_view,
             self.navigation_view.get_visible_page,
-            switch,
+            switch_and_focus,
             direction,
         )
+
+    def _console_focus_page(self) -> bool:
+        """Select the first song or card on the page now showing."""
+        page = self.navigation_view.get_visible_page()
+        if page is not None and self.get_visible_dialog() is None:
+            spatial_focus.focus_first(self, page)
+        return GLib.SOURCE_REMOVE
 
     def console_switch_tab(self, step: int) -> None:
         """LB/RB: go to the previous or next console tab."""
@@ -615,6 +686,10 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.console_go_to_tab(tags[(index + step) % len(tags)], step)
 
     def _new_discover_page(self):
+        """The Discover tab's page, built once and kept between visits."""
+        page = getattr(self, "_discover_page", None)
+        if page is not None:
+            return page
         home_page = getattr(self, "home_page", None)
 
         def home_feed():
@@ -625,6 +700,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         page = HTGenericPage.new_from_function(home_feed)
         page.console_view = "discover"
         page.set_tag("discover")
+        self._discover_page = page
         return page.load()
 
     def console_focus_search(self) -> None:
@@ -663,6 +739,11 @@ class HighTideWindow(Adw.ApplicationWindow):
             if isinstance(dialog, Adw.PreferencesDialog) and dialog.pop_subpage():
                 return
             dialog.close()
+            return
+        # B goes back through pages opened inside the current tab, but
+        # never from one tab to another (that's what LB/RB are for)
+        visible = self.navigation_view.get_visible_page()
+        if visible is not None and visible.get_tag() in CONSOLE_TAB_TAGS:
             return
         self.navigation_view.pop()
 
@@ -1076,6 +1157,9 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback("on_navigation_view_page_popped")
     def on_navigation_view_page_popped_func(self, nav_view, nav_page):
+        if nav_page is getattr(self, "_discover_page", None):
+            # Kept for the next visit to the Discover tab
+            return
         nav_page.disconnect_all()
 
     @Gtk.Template.Callback("on_visible_page_changed")

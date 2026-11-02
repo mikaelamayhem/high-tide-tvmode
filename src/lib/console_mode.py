@@ -9,9 +9,9 @@ was started with --console (which only lasts for that session). Later
 console features (controller input, on-screen keyboard) hook in through
 apply_console_mode().
 
-With "match the screen" on, the scale also follows the screen height
-(like a game HUD designed for 1080p), so the layout takes the same share
-of the screen at 720p, 1080p or 4K.
+With "match the window" on, the layout is built at one fixed size and the
+whole window is scaled to fit (like a game HUD), so it looks identical at
+720p, 1440p or 4K. See console_fixed_layout.py.
 
 Scaling works in three layers:
 - text: Gtk.Settings "gtk-xft-dpi" makes every font bigger
@@ -26,11 +26,15 @@ CONSOLE_CSS_CLASS = "console-mode"
 # Gtk's default dpi, stored as dpi * 1024
 _BASE_XFT_DPI = 96 * 1024
 
-# The screen height the interface size is designed for when matching the
-# screen; heights are in logical pixels, so desktop scaling is included
+# Interface size percentages were first tuned against 1080p screens
 _REFERENCE_HEIGHT = 1080
 
 _state = {"enabled": False, "scale": 1.0, "auto": False}
+
+
+def is_fixed_layout() -> bool:
+    """True when the console layout is scaled to the window as a whole."""
+    return _state["enabled"] and _state["auto"]
 _css_provider: Gtk.CssProvider | None = None
 _default_xft_dpi: int | None = None
 
@@ -51,29 +55,17 @@ def get_scale() -> float:
     return _state["scale"] if _state["enabled"] else 1.0
 
 
-def screen_height(window: Gtk.Window) -> int | None:
-    """The height of the screen the window is on, in logical pixels."""
-    display = window.get_display() or Gdk.Display.get_default()
-    if display is None:
-        return None
-    monitor = None
-    surface = window.get_surface()
-    if surface is not None:
-        monitor = display.get_monitor_at_surface(surface)
-    if monitor is None:
-        monitors = display.get_monitors()
-        monitor = monitors.get_item(0) if monitors.get_n_items() else None
-    if monitor is None:
-        return None
-    return monitor.get_geometry().height or None
+def compute_scale(scale_percent: int, auto: bool) -> float:
+    """The scale factor for the interface from the settings.
 
-
-def compute_scale(window: Gtk.Window, scale_percent: int, auto: bool) -> float:
-    """The scale factor for a window from the settings."""
+    With "match the window" on, the layout is built once for a 1440p
+    window (see console_fixed_layout.py) and the whole window is scaled
+    from there, so the percent is the size in that 1440p layout. The 4/3
+    keeps the meaning it had when it was measured against 1080p screens.
+    """
     if not auto:
         return max(scale_percent, 100) / 100
-    height = screen_height(window) or _REFERENCE_HEIGHT
-    return min(4.0, max(0.5, scale_percent / 100 * height / _REFERENCE_HEIGHT))
+    return scale_percent / 100 * 1440 / _REFERENCE_HEIGHT
 
 
 def apply_console_mode(
@@ -82,7 +74,7 @@ def apply_console_mode(
     """Turn the console layout on or off for a window."""
     _state["enabled"] = enabled
     _state["auto"] = auto and enabled
-    _state["scale"] = compute_scale(window, scale_percent, auto)
+    _state["scale"] = compute_scale(scale_percent, auto)
 
     # Light text reads best on the dimmed album art background
     Adw.StyleManager.get_default().set_color_scheme(

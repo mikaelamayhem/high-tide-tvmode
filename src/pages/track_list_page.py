@@ -62,6 +62,10 @@ class TrackListPage(Page):
         shuffle_btn = builder.get_object("_shuffle_button")
         in_my_collection_btn = builder.get_object("_in_my_collection_button")
         share_button = builder.get_object("_share_button")
+        # Play and Shuffle can be selected with the controller
+        for button in (play_btn, shuffle_btn):
+            button._ht_console_target = True
+            button.add_css_class("console-target")
 
         self.signals.extend(
             [

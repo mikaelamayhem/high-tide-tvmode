@@ -171,6 +171,12 @@ window.console-mode button.console-target:focus:focus-visible {
   outline: none;
 }
 
+/* Colored buttons (like Play) keep their color and get a soft ring */
+window.console-mode button.console-target.suggested-action:focus:focus-visible {
+  background-color: var(--accent-bg-color);
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 35%);
+}
+
 /* "More" at the end of a row or list */
 window.console-mode .console-more-tile {
   padding: 0;

@@ -56,15 +56,15 @@
       <description>Full screen, controller friendly layout for TVs and handhelds</description>
     </key>
 	  <key name="console-scale" type="i">
-      <range min="100" max="250"/>
-      <default>150</default>
+      <range min="50" max="250"/>
+      <default>115</default>
       <summary>Console mode scale</summary>
       <description>How much bigger the interface is in console mode, in percent</description>
     </key>
 	  <key name="console-scale-auto" type="b">
       <default>true</default>
-      <summary>Match the screen</summary>
-      <description>Scale console mode with the screen height, so the layout looks the same on every screen. Interface size is then the size at 1080p</description>
+      <summary>Match the window</summary>
+      <description>Build the console layout at one size and scale the whole window to fit, so it looks identical at any resolution</description>
     </key>
 	  <key name="console-button-style" type="s">
       <choices>
