@@ -82,5 +82,12 @@ install_subdir('pygobject/gi',
 )
 
 install_data('probe.py', install_dir: get_option('datadir') / 'hightide-probe', install_tag: 'runtime')
+
+# High Tide itself. CI stages app/ (high_tide package, gresource, pydeps).
+install_data('launch.py', install_dir: get_option('datadir') / 'high-tide', install_tag: 'runtime')
+install_subdir('app', install_dir: get_option('datadir') / 'high-tide',
+  strip_directory: true, install_tag: 'runtime')
+install_data('../data/io.github.nokse22.high-tide.gschema.xml',
+  install_dir: get_option('datadir') / 'glib-2.0' / 'schemas', install_tag: 'runtime')
 install_subdir('typelibs', install_dir: get_option('datadir') / 'girepository-1.0',
   strip_directory: true, install_tag: 'runtime')

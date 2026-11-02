@@ -26,7 +26,12 @@ from gettext import gettext as _
 from pathlib import Path
 from typing import Any, List, Union
 
-from gi.repository import GLib, GObject, Gst, Gio
+from gi.repository import GLib, GObject, Gio
+
+try:
+    from gi.repository import Gst
+except ImportError:  # Android build without GStreamer (playback disabled)
+    Gst = None
 
 from tidalapi.album import Album
 from tidalapi.artist import Artist
@@ -80,6 +85,23 @@ class PlayerObject(GObject.GObject):
     ) -> None:
         GObject.GObject.__init__(self)
 
+        self.normalize = normalize
+        self.quadratic_volume = quadratic_volume
+        self.most_recent_rg_tags = ""
+        self.discord_rpc_enabled = True
+        self.alsa_device: str = alsa_device
+
+        if Gst is None:
+            logger.warning("GStreamer is not available, playback is disabled")
+            self.pipeline = self.playbin = None
+            self.gapless_enabled = False
+            self.use_about_to_finish = False
+        else:
+            self._init_pipeline(preferred_sink)
+
+        self._init_state()
+
+    def _init_pipeline(self, preferred_sink: AudioSink) -> None:
         Gst.init(None)
 
         version_str = Gst.version_string()
@@ -103,13 +125,6 @@ class PlayerObject(GObject.GObject):
 
         self.pipeline.add(self.playbin)
 
-        self.normalize = normalize
-        self.quadratic_volume = quadratic_volume
-        self.most_recent_rg_tags = ""
-
-        self.discord_rpc_enabled = True
-
-        self.alsa_device: str = alsa_device
         # Configure audio sink
         self._setup_audio_sink(preferred_sink)
 
@@ -121,6 +136,7 @@ class PlayerObject(GObject.GObject):
         self._bus.connect("message::buffering", self._on_buffering_message)
         self._bus.connect("message::stream-start", self._on_track_start)
 
+    def _init_state(self) -> None:
         # Initialize state utils
         self._shuffle = False
         self._playing = False
@@ -782,6 +798,8 @@ class PlayerObject(GObject.GObject):
         Returns:
             int: Duration in nanoseconds, or 0 if query failed
         """
+        if self.playbin is None:
+            return 0
         success, duration = self.playbin.query_duration(Gst.Format.TIME)
         return duration if success else 0
 
@@ -794,6 +812,8 @@ class PlayerObject(GObject.GObject):
         Returns:
             int: Position in nanoseconds, or default value if query failed
         """
+        if self.playbin is None:
+            return default
         success, position = self.playbin.query_position(Gst.Format.TIME)
         return position if success else default
 

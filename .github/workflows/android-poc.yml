@@ -5,7 +5,7 @@ name: Android TV probe
 on:
   push:
     branches: [claude/project-thread-z007gb]
-    paths: ['android-poc/**', '.github/workflows/android-poc.yml']
+    paths: ['android-poc/**', 'src/**', 'data/**', '.github/workflows/android-poc.yml']
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -78,6 +78,23 @@ jobs:
           done
           ls typelibs
           for n in GLib-2.0 GObject-2.0 Gio-2.0 Gtk-4.0 Adw-1; do test -f typelibs/$n.typelib || { echo "::error::missing $n typelib"; exit 1; }; done
+      - name: Stage High Tide (Python code, compiled UI, dependencies)
+        run: |
+          set -eux
+          mkdir -p app
+          sudo apt-get install -y python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 rsync
+          rsync -a --exclude meson.build --exclude high-tide.in ../src/ app/high_tide/
+          # Blueprint UI files -> .ui, then bundle the resources
+          git clone -q --depth 1 -b v0.18.0 https://gitlab.gnome.org/jwestman/blueprint-compiler /tmp/bp
+          rm -rf /tmp/htdata && cp -r ../data /tmp/htdata
+          blps=$(grep -o "'[^']*\.blp'" ../data/meson.build | tr -d "'")
+          (cd ../data && /usr/bin/python3 /tmp/bp/blueprint-compiler.py batch-compile /tmp/htdata . $blps)
+          glib-compile-resources --sourcedir /tmp/htdata --target app/high-tide.gresource ../data/high-tide.gresource.xml
+          # Pure-Python dependencies (same set as the Flatpak)
+          python -m pip install --target app/pydeps --no-compile --no-binary charset-normalizer \
+            "tidalapi==0.8.8" "requests[socks]" segno "pypresence @ git+https://github.com/qwertyquerty/pypresence"
+          find app/pydeps -name '*.so' -print -delete
+          du -sh app/*
       - name: Add our GTK patches to pixiewood
         run: cp patches/*.patch "$GITHUB_WORKSPACE/pixiewood/prepare/wraps/gtk/"
       # Reuse one debug signing key across builds, so a new APK installs

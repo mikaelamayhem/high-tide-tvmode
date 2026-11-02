@@ -23,7 +23,7 @@ run_python (int argc, char **argv)
 {
   g_autofree char *home = g_build_filename (data_dir (), "python", PROBE_CPU, NULL);
   g_autofree char *typelibs = g_build_filename (data_dir (), "girepository-1.0", NULL);
-  g_autofree char *script = g_build_filename (data_dir (), "hightide-probe", "probe.py", NULL);
+  g_autofree char *script = g_build_filename (data_dir (), "high-tide", "launch.py", NULL);
   PyConfig config;
   PyStatus status;
   FILE *fp;
@@ -59,7 +59,7 @@ run_python (int argc, char **argv)
     }
   rc = PyRun_SimpleFileEx (fp, script, 1);
   if (rc != 0)
-    python_error = g_strdup ("probe.py raised an exception, see logcat (tag python.stderr)");
+    python_error = g_strdup ("High Tide raised an exception, see logcat (tag python.stderr)");
   return rc;
 }
 

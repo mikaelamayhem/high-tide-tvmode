@@ -22,7 +22,14 @@ from gettext import gettext as _
 from typing import Callable
 
 import tidalapi
-from gi.repository import Adw, Gio, GLib, GObject, Gst, Gtk, Xdp, Gdk
+from gi.repository import Adw, Gio, GLib, GObject, Gtk, Gdk
+
+from .lib.platform_info import IS_ANDROID, NS_PER_SECOND
+
+try:
+    from gi.repository import Xdp
+except ImportError:  # Android
+    Xdp = None
 from tidalapi.media import Quality
 
 from .lib.steam_keyboard import open_steam_keyboard
@@ -296,10 +303,12 @@ class HighTideWindow(Adw.ApplicationWindow):
             self.secret_portal_dialog.present(self)
             return
 
-        MPRIS(self.player_object)
+        if not IS_ANDROID:
+            MPRIS(self.player_object)
 
-        self.portal = Xdp.Portal()
-        self.portal.set_background_status(_("Playing Music"))
+        self.portal = Xdp.Portal() if Xdp else None
+        if self.portal:
+            self.portal.set_background_status(_("Playing Music"))
 
         self.connect("notify::is-active", self.stop_video_in_background)
 
@@ -919,7 +928,7 @@ class HighTideWindow(Adw.ApplicationWindow):
 
         self.player_object.seek(seek_fraction)
 
-        duration_secs = self.duration / Gst.SECOND
+        duration_secs = self.duration / NS_PER_SECOND
         position_secs = seek_fraction * duration_secs
         self.time_played_label.set_label(utils.pretty_duration(position_secs))
         self.lyrics_widget.set_time(position_secs)
@@ -928,7 +937,7 @@ class HighTideWindow(Adw.ApplicationWindow):
 
     @Gtk.Template.Callback("on_seek_from_lyrics")
     def on_seek_from_lyrics(self, lyrics_widget, time_ms):
-        end_value = self.duration / Gst.SECOND
+        end_value = self.duration / NS_PER_SECOND
 
         if end_value == 0:
             return
@@ -986,7 +995,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         """
         # Just copy the duration from player here to avoid ui desync from player object
         self.duration = self.player_object.duration
-        end_value = self.duration / Gst.SECOND
+        end_value = self.duration / NS_PER_SECOND
 
         self.volume_button.get_adjustment().set_value(self.player_object.query_volume())
         self.duration_label.set_label(utils.pretty_duration(end_value))
@@ -995,7 +1004,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         if position_ns is None:
             self.time_played_label.set_label(utils.pretty_duration(0))
             return
-        position = position_ns / Gst.SECOND
+        position = position_ns / NS_PER_SECOND
 
         self.lyrics_widget.set_time(position)
         self.time_played_label.set_label(utils.pretty_duration(position))
