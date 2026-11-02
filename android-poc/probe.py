@@ -22,16 +22,32 @@ def log(msg):
 log(f"python {sys.version} on {platform.machine()}, PyGObject {gi.__version__}")
 
 
+def android_ca_bundle():
+    """Collect Android's system CA certificates as one PEM string.
+
+    Android names the files by OpenSSL's old hash, which current OpenSSL
+    can't use as a lookup directory, so read them all instead."""
+    import os
+    import re
+
+    pem = re.compile(r"-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----", re.S)
+    certs = []
+    for d in ("/apex/com.android.conscrypt/cacerts", "/system/etc/security/cacerts"):
+        if not os.path.isdir(d):
+            continue
+        for name in os.listdir(d):
+            with open(os.path.join(d, name), encoding="ascii", errors="ignore") as f:
+                certs += pem.findall(f.read())
+        if certs:
+            break
+    log(f"loaded {len(certs)} CA certificates")
+    return "\n".join(certs)
+
+
 def check_network(label):
     """Fetch the Tidal API root over HTTPS and report the outcome."""
     try:
-        ctx = ssl.create_default_context()
-        try:
-            import certifi  # noqa: F401
-            ctx.load_verify_locations(certifi.where())
-        except ImportError:
-            # Android keeps its CA certificates here.
-            ctx.load_verify_locations(capath="/system/etc/security/cacerts")
+        ctx = ssl.create_default_context(cadata=android_ca_bundle())
         req = urllib.request.Request("https://api.tidal.com/v1/", method="GET")
         try:
             with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
