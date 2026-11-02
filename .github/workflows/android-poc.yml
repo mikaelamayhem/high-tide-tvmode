@@ -80,6 +80,13 @@ jobs:
           for n in GLib-2.0 GObject-2.0 Gio-2.0 Gtk-4.0 Adw-1; do test -f typelibs/$n.typelib || { echo "::error::missing $n typelib"; exit 1; }; done
       - name: Add our GTK patches to pixiewood
         run: cp patches/*.patch "$GITHUB_WORKSPACE/pixiewood/prepare/wraps/gtk/"
+      # Reuse one debug signing key across builds, so a new APK installs
+      # over the old one instead of failing with "conflicts".
+      - name: Restore debug signing key
+        uses: actions/cache@v5
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
       - name: Prepare
         run: pixiewood -v prepare --android-studio-dir="$GITHUB_WORKSPACE/mini" --sdk="$ANDROID_HOME" pixiewood.xml
       - name: Generate
