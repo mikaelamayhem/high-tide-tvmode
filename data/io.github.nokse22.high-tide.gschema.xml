@@ -61,6 +61,11 @@
       <summary>Console mode scale</summary>
       <description>How much bigger the interface is in console mode, in percent</description>
     </key>
+	  <key name="console-scale-auto" type="b">
+      <default>true</default>
+      <summary>Match the screen</summary>
+      <description>Scale console mode with the screen height, so the layout looks the same on every screen. Interface size is then the size at 1080p</description>
+    </key>
 	  <key name="console-button-style" type="s">
       <choices>
         <choice value="auto"/>

@@ -145,18 +145,45 @@ dropdown button:not(:hover) {
   background-color: transparent;
 }
 /* Console mode: controller friendly layout, see src/lib/console_mode.py */
-window.console-mode *:focus-visible {
-  outline: 3px solid var(--accent-color);
-  outline-offset: 2px;
+
+/* The selected song, album or button gets a soft, rounded highlight
+   (like hovering with a mouse), with no outline rings */
+window.console-mode .card-bg:focus:focus-visible,
+window.console-mode flowboxchild:focus:focus-visible,
+window.console-mode .tracks-list-box row:focus:focus-visible,
+window.console-mode list row:focus:focus-visible,
+window.console-mode .console-more-tile:focus:focus-visible {
+  background-color: rgb(255 255 255 / 16%);
+  outline: none;
+  box-shadow: none;
 }
 
-/* Make the selected row or card obvious from across the room */
-window.console-mode row:focus-visible,
-window.console-mode flowboxchild:focus-visible,
-window.console-mode .card-bg:focus-visible {
-  background-color: alpha(var(--accent-bg-color), 0.3);
-  outline: 3px solid var(--accent-color);
-  outline-offset: -3px;
+window.console-mode .card-bg:focus:focus-visible {
+  border-radius: 14px;
+}
+
+window.console-mode list row:focus:focus-visible {
+  border-radius: 12px;
+}
+
+window.console-mode button.console-target:focus:focus-visible {
+  background-color: rgb(255 255 255 / 22%);
+  outline: none;
+}
+
+/* "More" at the end of a row or list */
+window.console-mode .console-more-tile {
+  padding: 0;
+  border-radius: 14px;
+}
+
+window.console-mode .console-more-art {
+  border-radius: 10px;
+  background-color: rgb(255 255 255 / 8%);
+}
+
+window.console-mode .console-more-tile .title-4 {
+  font-weight: bold;
 }
 
 window.console-mode .console-volume-osd {
@@ -180,11 +207,30 @@ window.console-mode {
   background: none;
 }
 
+/* Full width, in the same dark tone as the player panel on the left */
 window.console-mode .console-hints {
-  background-color: rgb(0 0 0 / 30%);
-  border-radius: 999px;
-  padding: 6px 24px;
-  margin-bottom: 12px;
+  background-color: rgb(0 0 0 / 25%);
+  padding: 16px 24px;
+  font-size: 1.1em;
+}
+
+/* Dialogs and menus stay solid so their text is easy to read */
+window.console-mode dialog,
+window.console-mode popover {
+  --window-bg-color: #222226;
+  --view-bg-color: #1d1d20;
+  --headerbar-bg-color: #2e2e32;
+  --headerbar-backdrop-color: #222226;
+  --headerbar-shade-color: rgb(0 0 0 / 36%);
+  --sidebar-bg-color: #2e2e32;
+  --card-bg-color: rgb(255 255 255 / 8%);
+  --popover-bg-color: #36363a;
+  --dialog-bg-color: #2a2a2e;
+}
+
+window.console-mode dialog > floating-sheet > sheet,
+window.console-mode dialog sheet {
+  background-color: var(--window-bg-color);
 }
 
 .console-qr {

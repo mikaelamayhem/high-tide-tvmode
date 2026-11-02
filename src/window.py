@@ -27,8 +27,10 @@ from tidalapi.media import Quality
 
 from .lib.steam_keyboard import open_steam_keyboard
 from .lib.console_background import ConsoleBackground
+from .lib.console_slide import ConsoleTabSlide
 from .lib.console_tabs import CONSOLE_TAB_TAGS, ConsolePanelPage, ConsoleTabBar
 from .lib.console_hints import ConsoleGlyphs, ConsoleHintsBar, VolumeOsd
+from .lib import spatial_focus
 from .lib import (HTCache, PlayerObject, RepeatType, SecretStore,
                   SteamKeyboardWatcher, console_mode, gamepad,
                   apply_console_mode, is_console_mode, scale_widget_sizes,
@@ -128,6 +130,9 @@ class HighTideWindow(Adw.ApplicationWindow):
         console_overlay.add_overlay(console_box)
         console_overlay.set_measure_overlay(console_box, True)
         console_overlay.add_overlay(self.volume_osd)
+        # Draws the sideways slide when LB/RB change tabs
+        self.console_tab_slide = ConsoleTabSlide()
+        console_overlay.add_overlay(self.console_tab_slide)
         self.set_content(console_overlay)
         self.playing_track_picture.connect(
             "notify::paintable",
@@ -154,9 +159,31 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.console_lyrics_page = ConsolePanelPage("lyrics", _("Lyrics"))
         self._console_panels_moved = False
         self._console_tab = "home"
-        # The player sidebar is run by its own buttons (X, LB/RB, LT/RT),
-        # so the D-pad stays in the main content
-        self.console_focus_skip = [self.player_lyrics_queue]
+        # In the player sidebar the D-pad only reaches the row of song
+        # buttons (see _arrange_console_player)
+        self.console_focus_skip = []
+        self._console_player_arranged = False
+        self._transport_row = self.shuffle_button.get_parent()
+        self._song_actions_row = self.in_my_collection_button.get_parent()
+        for button in (
+            self.shuffle_button,
+            self.repeat_button,
+            self.in_my_collection_button,
+            self.track_radio_button,
+            self.album_button,
+            self.copy_share_link,
+        ):
+            button._ht_console_target = True
+            button.add_css_class("console-target")
+        # The stick seeks in console mode; scrolling over the bar shouldn't
+        scroll_blocker = Gtk.EventControllerScroll(
+            flags=Gtk.EventControllerScrollFlags.BOTH_AXES
+        )
+        scroll_blocker.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        scroll_blocker.connect(
+            "scroll", lambda *_: console_mode.is_enabled()
+        )
+        self.progress_bar.add_controller(scroll_blocker)
 
         self.gamepad = gamepad.ConsoleGamepad(
             self,
@@ -164,7 +191,9 @@ class HighTideWindow(Adw.ApplicationWindow):
             self.update_console_mode,
             self.console_scroll,
             self.console_change_volume,
+            self.console_seek,
         )
+        self._console_seek_target: float | None = None
         self.settings.connect(
             "changed::console-button-style", self.update_console_mode
         )
@@ -179,6 +208,11 @@ class HighTideWindow(Adw.ApplicationWindow):
             "changed::console-steam-keyboard", self.update_console_mode
         )
         self.settings.connect("changed::console-scale", self.update_console_mode)
+        self.settings.connect(
+            "changed::console-scale-auto", self.update_console_mode
+        )
+        # Matching the screen needs to know which screen the window is on
+        self.connect("realize", self._on_console_realize)
         self.update_console_mode()
         # Enlarge the player bar cover art once at startup
         scale_widget_sizes(self)
@@ -308,7 +342,14 @@ class HighTideWindow(Adw.ApplicationWindow):
     def update_console_mode(self, *args):
         """Apply console mode from the setting or the --console flag."""
         enabled = is_console_mode(self.settings, self.get_application())
-        apply_console_mode(self, enabled, self.settings.get_int("console-scale"))
+        old_scale = console_mode.get_scale()
+        apply_console_mode(
+            self,
+            enabled,
+            self.settings.get_int("console-scale"),
+            self.settings.get_boolean("console-scale-auto"),
+        )
+        self._console_scale_changed = console_mode.get_scale() != old_scale
         self.steam_keyboard.set_enabled(
             enabled and self.settings.get_boolean("console-steam-keyboard")
         )
@@ -326,6 +367,7 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.console_background.set_visible(enabled)
         self.console_tabs.set_visible(enabled)
         self._move_console_panels(enabled)
+        self._arrange_console_player(enabled)
 
         # Console home has Liked Songs and playlists, so the tabs aren't needed
         self.navigation_buttons.set_visible(not enabled)
@@ -333,6 +375,40 @@ class HighTideWindow(Adw.ApplicationWindow):
             self._console_home_enabled = enabled
             if getattr(self, "is_logged_in", False):
                 self.show_home_page()
+
+    def _on_console_realize(self, *args) -> None:
+        surface = self.get_surface()
+        if surface is not None:
+            surface.connect("enter-monitor", self._on_console_monitor)
+        self._on_console_monitor()
+
+    def _on_console_monitor(self, *args) -> None:
+        if not console_mode.is_enabled():
+            return
+        self.update_console_mode()
+        if self._console_scale_changed and getattr(self, "is_logged_in", False):
+            # Rebuild the home page at the new size
+            self.show_home_page()
+
+    def _arrange_console_player(self, enabled: bool) -> None:
+        """Console mode: shuffle and repeat join the song buttons row.
+
+        The left stick sets the volume, so the volume button makes way and
+        the row reads: shuffle, repeat, like, radio, album, share.
+        """
+        if enabled == self._console_player_arranged:
+            return
+        self._console_player_arranged = enabled
+        self.volume_button.set_visible(not enabled)
+        self.progress_bar.set_focusable(not enabled)
+        for button in (self.shuffle_button, self.repeat_button):
+            button.get_parent().remove(button)
+        if enabled:
+            self._song_actions_row.prepend(self.repeat_button)
+            self._song_actions_row.prepend(self.shuffle_button)
+        else:
+            self._transport_row.prepend(self.shuffle_button)
+            self._transport_row.append(self.repeat_button)
 
     def on_console_setting_changed(self, *args) -> None:
         # Changing the setting overrides --console for the rest of the session
@@ -393,9 +469,37 @@ class HighTideWindow(Adw.ApplicationWindow):
         page = self.navigation_view.get_visible_page()
         scrolled_window = getattr(page, "scrolled_window", None)
         if scrolled_window is None:
+            # Queue and Lyrics: use the first list that scrolls up and down
+            scrolled_window = spatial_focus.find_vertical_scroller(page)
+        if scrolled_window is None:
             return
         adjustment = scrolled_window.get_vadjustment()
         adjustment.set_value(adjustment.get_value() + pixels)
+
+    def console_seek(self, seconds: float | None) -> None:
+        """Right stick left/right: move through the song.
+
+        While the stick is held the bar and time move smoothly; the song
+        jumps there when the stick is let go.
+        """
+        duration = self.player_object.duration / Gst.SECOND
+        if seconds is None:
+            if self._console_seek_target is not None and duration:
+                self.player_object.seek(self._console_seek_target / duration)
+            self._console_seek_target = None
+            return
+        if not duration:
+            return
+        if self._console_seek_target is None:
+            position = self.player_object.query_position(default=0) / Gst.SECOND
+            self._console_seek_target = position
+        target = min(duration - 1, max(0.0, self._console_seek_target + seconds))
+        self._console_seek_target = target
+        fraction = target / duration
+        self.progress_bar.get_adjustment().set_value(fraction)
+        self.small_progress_bar.set_fraction(fraction)
+        self.time_played_label.set_label(utils.pretty_duration(target))
+        self.previous_fraction = fraction
 
     def console_change_volume(self, delta: float) -> None:
         """Nudge the volume, for the right stick."""
@@ -468,27 +572,47 @@ class HighTideWindow(Adw.ApplicationWindow):
         # Only the player is left in the sidebar, so hide its tab switcher
         self.player_headerbar.get_title_widget().set_visible(not enabled)
 
-    def console_go_to_tab(self, tag: str) -> None:
-        """Show one of the console tabs: home, discover, queue or lyrics."""
+    def console_go_to_tab(self, tag: str, direction: int | None = None) -> None:
+        """Show one of the console tabs: home, discover, queue or lyrics.
+
+        The new tab slides in from the right when it's further along the
+        tab bar (or direction is 1), from the left otherwise.
+        """
+        tags = CONSOLE_TAB_TAGS
+        if direction is None:
+            old_index = tags.index(self._console_tab) if self._console_tab in tags else 0
+            direction = 1 if tags.index(tag) >= old_index else -1
         self._console_tab = tag
         self.console_tabs.set_current(tag)
         visible = self.navigation_view.get_visible_page()
         if visible is not None and visible.get_tag() == tag:
             return
 
-        self.navigation_view.pop_to_tag("home")
-        if tag == "discover":
-            self.navigation_view.push(self._new_discover_page())
-        elif tag == "queue":
-            self.navigation_view.push(self.console_queue_page)
-        elif tag == "lyrics":
-            self.navigation_view.push(self.console_lyrics_page)
+        def switch():
+            self.navigation_view.set_animate_transitions(False)
+            try:
+                self.navigation_view.pop_to_tag("home")
+                if tag == "discover":
+                    self.navigation_view.push(self._new_discover_page())
+                elif tag == "queue":
+                    self.navigation_view.push(self.console_queue_page)
+                elif tag == "lyrics":
+                    self.navigation_view.push(self.console_lyrics_page)
+            finally:
+                self.navigation_view.set_animate_transitions(True)
+
+        self.console_tab_slide.switch(
+            self.navigation_view,
+            self.navigation_view.get_visible_page,
+            switch,
+            direction,
+        )
 
     def console_switch_tab(self, step: int) -> None:
         """LB/RB: go to the previous or next console tab."""
         tags = CONSOLE_TAB_TAGS
         index = tags.index(self._console_tab) if self._console_tab in tags else 0
-        self.console_go_to_tab(tags[(index + step) % len(tags)])
+        self.console_go_to_tab(tags[(index + step) % len(tags)], step)
 
     def _new_discover_page(self):
         home_page = getattr(self, "home_page", None)
@@ -991,6 +1115,9 @@ class HighTideWindow(Adw.ApplicationWindow):
         self.volume_button.get_adjustment().set_value(self.player_object.query_volume())
         self.duration_label.set_label(utils.pretty_duration(end_value))
 
+        if getattr(self, "_console_seek_target", None) is not None:
+            # The right stick is previewing a seek
+            return
         position_ns = self.player_object.query_position(default=None)
         if position_ns is None:
             self.time_played_label.set_label(utils.pretty_duration(0))

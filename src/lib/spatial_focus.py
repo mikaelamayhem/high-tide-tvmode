@@ -11,6 +11,10 @@ you see: pressing down goes to whatever is right below.
 
 from gi.repository import Adw, Graphene, Gtk
 
+# How far from the edge the selected item stays when scrolling to it
+_SCROLL_MARGIN = 48
+_SCROLL_DURATION_MS = 220
+
 _DOWN = Gtk.DirectionType.DOWN
 _UP = Gtk.DirectionType.UP
 _LEFT = Gtk.DirectionType.LEFT
@@ -23,6 +27,15 @@ _SIDEWAYS_WEIGHT = 2.0
 
 # Lists themselves can take focus, but their rows are what we want
 _LIST_TYPES = (Gtk.ListBox, Gtk.FlowBox, Gtk.ListView, Gtk.GridView)
+
+
+def is_target(widget: Gtk.Widget) -> bool:
+    """Whether the D-pad may land on a widget in the main window.
+
+    Only songs, albums (and other cards), "More" and the player buttons
+    set _ht_console_target. Dialogs and popovers allow everything.
+    """
+    return bool(getattr(widget, "_ht_console_target", False))
 
 
 def _is_candidate(widget: Gtk.Widget) -> bool:
@@ -51,6 +64,9 @@ def _search_root(window: Gtk.Window, focus: Gtk.Widget | None) -> Gtk.Widget:
 
 
 def _candidates(root: Gtk.Widget, skip: tuple = ()) -> list[Gtk.Widget]:
+    # In the main window only the chosen kinds of widget count; in a
+    # dialog or popover anything focusable does
+    targets_only = isinstance(root, Gtk.Window)
     found = []
     stack = [root]
     while stack:
@@ -59,7 +75,11 @@ def _candidates(root: Gtk.Widget, skip: tuple = ()) -> list[Gtk.Widget]:
             continue
         if widget is not root and isinstance(widget, Gtk.Popover):
             continue
-        if widget is not root and _is_candidate(widget):
+        if (
+            widget is not root
+            and _is_candidate(widget)
+            and (not targets_only or is_target(widget))
+        ):
             found.append(widget)
         child = widget.get_first_child()
         while child is not None:
@@ -140,7 +160,104 @@ def _first_candidate(root: Gtk.Widget, skip: tuple) -> bool:
         key = (round(rect.get_y()), rect.get_x())
         if best_key is None or key < best_key:
             best, best_key = candidate, key
-    return best.grab_focus() if best is not None else False
+    return _focus(best) if best is not None else False
+
+
+def _target_of(widget: Gtk.Widget | None) -> Gtk.Widget | None:
+    """The selectable item a widget belongs to (itself or an ancestor)."""
+    while widget is not None:
+        if is_target(widget):
+            return widget
+        widget = widget.get_parent()
+    return None
+
+
+def _focus(widget: Gtk.Widget) -> bool:
+    """Focus a widget and smoothly scroll it into view."""
+    viewports = []
+    parent = widget.get_parent()
+    while parent is not None:
+        if isinstance(parent, Gtk.Viewport):
+            # We scroll ourselves, with an animation
+            parent.set_scroll_to_focus(False)
+            viewports.append(parent)
+        parent = parent.get_parent()
+    focused = widget.grab_focus()
+    for viewport in viewports:
+        scroll_into_view(widget, viewport.get_parent())
+    return focused
+
+
+def scroll_into_view(widget: Gtk.Widget, scrolled: Gtk.Widget | None) -> None:
+    """Animate a scrolled window so a widget inside it is fully visible."""
+    if not isinstance(scrolled, Gtk.ScrolledWindow):
+        return
+    ok, rect = widget.compute_bounds(scrolled)
+    if not ok:
+        return
+    for adjustment, start, size in (
+        (scrolled.get_vadjustment(), rect.get_y(), rect.get_height()),
+        (scrolled.get_hadjustment(), rect.get_x(), rect.get_width()),
+    ):
+        page = adjustment.get_page_size()
+        if page <= 0 or adjustment.get_upper() - adjustment.get_lower() <= page:
+            continue
+        margin = min(_SCROLL_MARGIN, max(0.0, (page - size) / 2))
+        if start < margin:
+            delta = start - margin
+        elif start + size > page - margin:
+            delta = start + size - (page - margin)
+        else:
+            continue
+        # Aim from where a running animation is heading, not where it is
+        current = getattr(adjustment, "_ht_scroll_to", None)
+        if current is None:
+            current = adjustment.get_value()
+        target = min(
+            adjustment.get_upper() - page,
+            max(adjustment.get_lower(), current + delta),
+        )
+        _animate(scrolled, adjustment, target)
+
+
+def _animate(scrolled: Gtk.ScrolledWindow, adjustment, target: float) -> None:
+    previous = getattr(adjustment, "_ht_scroll_animation", None)
+    if previous is not None:
+        previous.pause()
+    animation = Adw.TimedAnimation.new(
+        scrolled,
+        adjustment.get_value(),
+        target,
+        _SCROLL_DURATION_MS,
+        Adw.CallbackAnimationTarget.new(adjustment.set_value),
+    )
+    animation.set_easing(Adw.Easing.EASE_OUT_CUBIC)
+
+    def done(*_args):
+        if getattr(adjustment, "_ht_scroll_animation", None) is animation:
+            adjustment._ht_scroll_animation = None
+            adjustment._ht_scroll_to = None
+
+    animation.connect("done", done)
+    adjustment._ht_scroll_animation = animation
+    adjustment._ht_scroll_to = target
+    animation.play()
+
+
+def find_vertical_scroller(root: Gtk.Widget | None) -> Gtk.ScrolledWindow | None:
+    """The first scrolled window under a widget that scrolls up and down."""
+    stack = [root] if root is not None else []
+    while stack:
+        widget = stack.pop(0)
+        if isinstance(widget, Gtk.ScrolledWindow) and widget.get_mapped():
+            adjustment = widget.get_vadjustment()
+            if adjustment.get_upper() - adjustment.get_lower() > adjustment.get_page_size():
+                return widget
+        child = widget.get_first_child()
+        while child is not None:
+            stack.append(child)
+            child = child.get_next_sibling()
+    return None
 
 
 def _move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
@@ -152,6 +269,17 @@ def _move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
     if focus is None or _is_inside(focus, skip):
         return _first_candidate(_search_root(window, None), skip)
 
+    root = _search_root(window, focus)
+    if isinstance(root, Gtk.Window):
+        # Measure from the song or card that holds the focus (e.g. focus
+        # may be on a link inside a card after a mouse click)
+        target = _target_of(focus)
+        if target is None and not isinstance(focus, (Gtk.Text, Gtk.Editable)):
+            # Focus is somewhere the D-pad can't go (e.g. after a page
+            # change): start again from the top item
+            return _first_candidate(root, skip)
+        focus = target or focus
+
     # Moving up or down from a button inside a list row moves by whole rows
     if direction in (_UP, _DOWN):
         row = focus
@@ -162,7 +290,6 @@ def _move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
         if row is not None and _is_candidate(row):
             focus = row
 
-    root = _search_root(window, focus)
     if root is not window and not focus.is_ancestor(root):
         # Focus is behind an open dialog: jump into the dialog
         return root.child_focus(Gtk.DirectionType.TAB_FORWARD)
@@ -187,4 +314,4 @@ def _move_focus(window: Gtk.Window, direction: Gtk.DirectionType) -> bool:
 
     if best is None:
         return False
-    return best.grab_focus()
+    return _focus(best)

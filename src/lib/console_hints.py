@@ -10,6 +10,7 @@ from gi.repository import GLib, Gtk
 
 ICON_RESOURCE = "/io/github/nokse22/high-tide/icons/console/{style}/{button}.svg"
 ICON_SIZE = 28
+HINT_ICON_SIZE = 32  # a little bigger in the bottom bar
 
 # (buttons, label). Several buttons share one hint, like LT/RT.
 # Bumpers, X and the triggers have icons next to the controls they use,
@@ -21,7 +22,7 @@ HINTS = (
     (("y",), _("Search")),
     (("select",), _("Home")),
     (("lstick",), _("Volume")),
-    (("rstick",), _("Scroll")),
+    (("rstick",), _("Seek / Scroll")),
     (("start",), _("Settings")),
 )
 
@@ -30,24 +31,21 @@ class ConsoleHintsBar(Gtk.Box):
     """A row of button icons with what each button does."""
 
     def __init__(self) -> None:
-        super().__init__(
-            orientation=Gtk.Orientation.HORIZONTAL,
-            spacing=24,
-            halign=Gtk.Align.CENTER,
-            margin_top=8,
-            margin_bottom=8,
-        )
+        # Spans the whole width, with the hints centered
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=32)
         self.add_css_class("console-hints")
         self._icons: list[tuple[Gtk.Image, str]] = []
+        self.append(Gtk.Box(hexpand=True))
 
         for buttons, label in HINTS:
-            hint = Gtk.Box(spacing=6)
+            hint = Gtk.Box(spacing=8)
             for button in buttons:
                 image = Gtk.Image()
                 hint.append(image)
                 self._icons.append((image, button))
             hint.append(Gtk.Label(label=label))
             self.append(hint)
+        self.append(Gtk.Box(hexpand=True))
 
         self.set_style("xbox", 1.0)
 
@@ -55,7 +53,7 @@ class ConsoleHintsBar(Gtk.Box):
         """Show icons for a controller style ("xbox", "playstation"...)."""
         for image, button in self._icons:
             image.set_from_resource(ICON_RESOURCE.format(style=style, button=button))
-            image.set_pixel_size(round(ICON_SIZE * scale))
+            image.set_pixel_size(round(HINT_ICON_SIZE * scale))
 
 
 class ConsoleGlyphs:

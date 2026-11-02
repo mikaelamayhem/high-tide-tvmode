@@ -46,6 +46,9 @@ class HTCardWidget(Adw.BreakpointBin, IDisconnectable):
 
     __gtype_name__ = "HTCardWidget"
 
+    # The controller's D-pad can land on this (see spatial_focus.py)
+    _ht_console_target = True
+
     image = Gtk.Template.Child()
     click_gesture = Gtk.Template.Child()
     title_label = Gtk.Template.Child()

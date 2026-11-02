@@ -9,6 +9,10 @@ was started with --console (which only lasts for that session). Later
 console features (controller input, on-screen keyboard) hook in through
 apply_console_mode().
 
+With "match the screen" on, the scale also follows the screen height
+(like a game HUD designed for 1080p), so the layout takes the same share
+of the screen at 720p, 1080p or 4K.
+
 Scaling works in three layers:
 - text: Gtk.Settings "gtk-xft-dpi" makes every font bigger
 - controls: a CSS provider makes buttons, rows and icons bigger
@@ -22,7 +26,11 @@ CONSOLE_CSS_CLASS = "console-mode"
 # Gtk's default dpi, stored as dpi * 1024
 _BASE_XFT_DPI = 96 * 1024
 
-_state = {"enabled": False, "scale": 1.0}
+# The screen height the interface size is designed for when matching the
+# screen; heights are in logical pixels, so desktop scaling is included
+_REFERENCE_HEIGHT = 1080
+
+_state = {"enabled": False, "scale": 1.0, "auto": False}
 _css_provider: Gtk.CssProvider | None = None
 _default_xft_dpi: int | None = None
 
@@ -43,10 +51,38 @@ def get_scale() -> float:
     return _state["scale"] if _state["enabled"] else 1.0
 
 
-def apply_console_mode(window: Gtk.Window, enabled: bool, scale_percent: int) -> None:
+def screen_height(window: Gtk.Window) -> int | None:
+    """The height of the screen the window is on, in logical pixels."""
+    display = window.get_display() or Gdk.Display.get_default()
+    if display is None:
+        return None
+    monitor = None
+    surface = window.get_surface()
+    if surface is not None:
+        monitor = display.get_monitor_at_surface(surface)
+    if monitor is None:
+        monitors = display.get_monitors()
+        monitor = monitors.get_item(0) if monitors.get_n_items() else None
+    if monitor is None:
+        return None
+    return monitor.get_geometry().height or None
+
+
+def compute_scale(window: Gtk.Window, scale_percent: int, auto: bool) -> float:
+    """The scale factor for a window from the settings."""
+    if not auto:
+        return max(scale_percent, 100) / 100
+    height = screen_height(window) or _REFERENCE_HEIGHT
+    return min(4.0, max(0.5, scale_percent / 100 * height / _REFERENCE_HEIGHT))
+
+
+def apply_console_mode(
+    window: Gtk.Window, enabled: bool, scale_percent: int, auto: bool = False
+) -> None:
     """Turn the console layout on or off for a window."""
     _state["enabled"] = enabled
-    _state["scale"] = max(scale_percent, 100) / 100
+    _state["auto"] = auto and enabled
+    _state["scale"] = compute_scale(window, scale_percent, auto)
 
     # Light text reads best on the dimmed album art background
     Adw.StyleManager.get_default().set_color_scheme(
@@ -89,11 +125,14 @@ def _apply_text_scale(scale: float) -> None:
         current = gtk_settings.props.gtk_xft_dpi
         _default_xft_dpi = current if current > 0 else _BASE_XFT_DPI
 
-    if scale == 1.0:
+    if scale == 1.0 and not _state["auto"]:
         # Give control back to the desktop's own font scaling
         gtk_settings.reset_property("gtk-xft-dpi")
     else:
-        gtk_settings.props.gtk_xft_dpi = int(_default_xft_dpi * scale)
+        # Matching the screen ignores the desktop's font scaling, so the
+        # text is the same size on every machine
+        base = _BASE_XFT_DPI if _state["auto"] else _default_xft_dpi
+        gtk_settings.props.gtk_xft_dpi = int(base * scale)
 
 
 def _apply_css_scale(scale: float) -> None:
@@ -107,13 +146,14 @@ def _apply_css_scale(scale: float) -> None:
         Gtk.StyleContext.remove_provider_for_display(display, _css_provider)
         _css_provider = None
 
-    if scale == 1.0:
+    if scale == 1.0 and not _state["auto"]:
         return
 
     # Text already follows the desktop's font scaling (e.g. 125% in KDE)
     # on top of ours, so grow icons and controls by the same amount to keep
     # them in proportion with the text
-    scale *= (_default_xft_dpi or _BASE_XFT_DPI) / _BASE_XFT_DPI
+    if not _state["auto"]:
+        scale *= (_default_xft_dpi or _BASE_XFT_DPI) / _BASE_XFT_DPI
 
     def px(value: float) -> str:
         return f"{round(value * scale)}px"
@@ -142,14 +182,6 @@ def _apply_css_scale(scale: float) -> None:
     window.console-mode scale slider {{
         min-width: {px(20)};
         min-height: {px(20)};
-    }}
-    window.console-mode *:focus-visible {{
-        outline-width: {px(3)};
-    }}
-    window.console-mode row:focus-visible,
-    window.console-mode flowboxchild:focus-visible,
-    window.console-mode .card-bg:focus-visible {{
-        outline-offset: -{px(3)};
     }}
     """
 

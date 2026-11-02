@@ -76,11 +76,12 @@ TRIGGER_ACTIONS = {
 }
 TRIGGER_THRESHOLD = 0.5
 
-# Left stick left/right changes the volume, right stick up/down scrolls.
-# The D-pad moves focus. Values are per tick at full tilt; a small tilt
-# moves much slower.
+# Left stick left/right changes the volume, right stick left/right seeks
+# through the song and up/down scrolls. The D-pad moves focus. Values are
+# per tick at full tilt; a small tilt moves much slower.
 SCROLL_SPEED = 28  # pixels
 VOLUME_SPEED = 0.008  # of full volume, so about 2 seconds from 0 to 100%
+SEEK_SPEED = 0.5  # seconds of song per tick, so 30x speed at full tilt
 STICK_INTERVAL_MS = 16
 STICK_DEADZONE = 0.2
 
@@ -131,11 +132,18 @@ class ConsoleGamepad:
         on_devices_changed: Callable[[list[str]], None],
         on_scroll: Callable[[float], None] | None = None,
         on_volume: Callable[[float], None] | None = None,
+        on_seek: Callable[[float | None], None] | None = None,
     ) -> None:
         self._on_scroll = on_scroll
         self._on_volume = on_volume
+        # Called with seconds to move, then None when the stick is let go
+        self._on_seek = on_seek
         self._volume_tilt = 0.0  # left stick x
         self._scroll_tilt = 0.0  # right stick y
+        self._seek_tilt = 0.0  # right stick x
+        # HIGH_TIDE_PAD_DEBUG=1 logs every controller event, to work out
+        # which buttons and axes a controller really sends
+        self._debug = bool(os.environ.get("HIGH_TIDE_PAD_DEBUG"))
         self._stick_source: int | None = None
         self._triggers_pressed: set[int] = set()
         self._window = window
@@ -195,7 +203,7 @@ class ConsoleGamepad:
         self._enabled = enabled
         if not enabled:
             self._stop_repeat()
-            self._volume_tilt = self._scroll_tilt = 0.0
+            self._volume_tilt = self._scroll_tilt = self._seek_tilt = 0.0
             self._update_sticks()
 
     # Devices
@@ -227,6 +235,8 @@ class ConsoleGamepad:
         has_button, button = event.get_button()
         if not has_button:
             return
+        if self._debug:
+            logger.info("Pad button %d pressed on %s", button, device.get_name())
 
         if button in DPAD_DIRECTIONS:
             self._start_move(DPAD_DIRECTIONS[button])
@@ -244,6 +254,8 @@ class ConsoleGamepad:
         has_axis, axis, value = event.get_absolute()
         if not has_axis:
             return
+        if self._debug and abs(value) > 0.3:
+            logger.info("Pad axis %d = %.2f on %s", axis, value, device.get_name())
         if axis in TRIGGER_ACTIONS:
             self._on_trigger(axis, value)
             return
@@ -252,6 +264,11 @@ class ConsoleGamepad:
             self._volume_tilt = tilt
         elif axis == ABS_RY:
             self._scroll_tilt = tilt
+        elif axis == ABS_RX:
+            was_seeking = bool(self._seek_tilt)
+            self._seek_tilt = tilt
+            if was_seeking and not tilt and self._on_seek is not None:
+                self._on_seek(None)
         else:
             return
         self._update_sticks()
@@ -260,6 +277,8 @@ class ConsoleGamepad:
         has_hat, axis, value = event.get_hat()
         if not has_hat or axis not in (ABS_HAT0X, ABS_HAT0Y):
             return
+        if self._debug and value:
+            logger.info("Pad hat %d = %d on %s", axis, value, device.get_name())
         if value == 0:
             direction = None
         elif axis == ABS_HAT0X:
@@ -291,7 +310,7 @@ class ConsoleGamepad:
     # Sticks: volume and scrolling
 
     def _update_sticks(self) -> None:
-        moving = self._volume_tilt or self._scroll_tilt
+        moving = self._volume_tilt or self._scroll_tilt or self._seek_tilt
         if moving and self._enabled:
             if self._stick_source is None:
                 self._stick_source = GLib.timeout_add(
@@ -302,7 +321,7 @@ class ConsoleGamepad:
             self._stick_source = None
 
     def _stick_tick(self) -> bool:
-        if not (self._volume_tilt or self._scroll_tilt):
+        if not (self._volume_tilt or self._scroll_tilt or self._seek_tilt):
             self._stick_source = None
             return GLib.SOURCE_REMOVE
         # Squaring the tilt makes small pushes move slowly
@@ -310,6 +329,8 @@ class ConsoleGamepad:
             self._on_scroll(self._scroll_tilt * abs(self._scroll_tilt) * SCROLL_SPEED)
         if self._volume_tilt and self._on_volume is not None:
             self._on_volume(self._volume_tilt * abs(self._volume_tilt) * VOLUME_SPEED)
+        if self._seek_tilt and self._on_seek is not None:
+            self._on_seek(self._seek_tilt * abs(self._seek_tilt) * SEEK_SPEED)
         return GLib.SOURCE_CONTINUE
 
     # Focus movement with repeat

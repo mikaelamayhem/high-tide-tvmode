@@ -210,6 +210,12 @@ class HighTideApplication(Adw.Application):
                 Gio.SettingsBindFlags.DEFAULT,
             )
             self.settings.bind(
+                "console-scale-auto",
+                builder.get_object("_console_scale_auto_row"),
+                "active",
+                Gio.SettingsBindFlags.DEFAULT,
+            )
+            self.settings.bind(
                 "console-scale",
                 builder.get_object("_console_scale_row"),
                 "value",

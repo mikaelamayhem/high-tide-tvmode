@@ -38,6 +38,9 @@ class HTTopHitWidget(Gtk.Box, IDisconnectable):
 
     __gtype_name__ = "HTTopHitWidget"
 
+    # The controller's D-pad can land on this (see spatial_focus.py)
+    _ht_console_target = True
+
     image = Gtk.Template.Child()
     primary_label = Gtk.Template.Child()
     secondary_label = Gtk.Template.Child()

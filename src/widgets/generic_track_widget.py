@@ -45,6 +45,9 @@ class HTGenericTrackWidget(Gtk.ListBoxRow, IDisconnectable):
 
     __gtype_name__ = "HTGenericTrackWidget"
 
+    # The controller's D-pad can land on this (see spatial_focus.py)
+    _ht_console_target = True
+
     image = Gtk.Template.Child()
     now_playing_indicator = Gtk.Template.Child()
     album_stack = Gtk.Template.Child()
