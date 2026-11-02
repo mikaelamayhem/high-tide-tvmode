@@ -67,7 +67,8 @@ jobs:
           echo "Using $COMPILER"
           # Android libraries have no version suffix: libgtk-4.so.1 -> libgtk-4.so
           mkdir -p /tmp/gir
-          for f in /usr/share/gir-1.0/*.gir; do
+          # Debian keeps GLib-2.0.gir in the multiarch dir
+          for f in /usr/lib/*/gir-1.0/*.gir /usr/share/gir-1.0/*.gir; do
             sed -E 's/(lib[A-Za-z0-9_.+-]*\.so)(\.[0-9]+)+/\1/g' "$f" > /tmp/gir/$(basename "$f")
           done
           grep -ho 'shared-library="[^"]*"' /tmp/gir/*.gir | sort -u
